@@ -1,0 +1,40 @@
+
+from typing import Optional
+from pydantic import BaseModel
+
+class PublishEventRequest(BaseModel):    
+    
+    ApplicationName:str = None
+    EventName:str = None
+    EventVersion:Optional[str] = None
+    EventReference:Optional[str] = None
+    Content:Optional[str] = None
+    SessionReference:Optional[str] = None
+    Priority:Optional[int] = None
+    DeDuplicate:bool = None
+    UniqueInteractionHeader: Optional[str] = None
+    
+    def Create(self, 
+               application_name:[str],
+               event_name:[str],            
+               de_duplicate:bool = False,
+               unique_interaction_header:Optional[str] = None,
+               priority:Optional[int] = None,
+               content:Optional[str] = None,
+               event_reference:Optional[str] = None,
+               session_reference:Optional[str] = None,
+               event_version:Optional[str] = None):       
+
+        self.ApplicationName = application_name
+        self.EventName = event_name
+        self.EventVersion = event_version
+        self.EventReference = event_reference
+        self.Content = content
+        self.SessionReference = session_reference
+        self.Priority = priority
+        self.DeDuplicate = de_duplicate
+        self.UniqueInteractionHeader = unique_interaction_header
+        
+        return self 
+    
+    
