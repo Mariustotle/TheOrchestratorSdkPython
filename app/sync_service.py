@@ -1,14 +1,14 @@
 from seedworks.logger import Logger
-from sdk.contracts.orchestrator_config import OrchestratorConfig
-from sdk.contracts.requests.application.sync_webhooks_request import SyncWebhooksRequest
-from sdk.contracts.requests.webhooks.webhook_request import WebhookRequest
-from sdk.contracts.endpoints import Endpoints
-from sdk.contracts.requests.events.publisher_request import PublisherRequest
-from sdk.contracts.requests.events.subscriber_request import SubscriberRequest
-from sdk.contracts.requests.application.sync_event_subscriptions import SyncEventSubscription
-from sdk.contracts.requests.application.sync_event_publishers import SyncEventPublishers
-from sdk.handlers.event_handlers.event_subscriber_base import EventSubscriberBase
-from sdk.handlers.event_handlers.event_publisher_base import EventPublisherBase
+from orchestrator_sdk.contracts.orchestrator_config import OrchestratorConfig
+from orchestrator_sdk.contracts.requests.application.sync_webhooks_request import SyncWebhooksRequest
+from orchestrator_sdk.contracts.requests.webhooks.webhook_request import WebhookRequest
+from orchestrator_sdk.contracts.endpoints import Endpoints
+from orchestrator_sdk.contracts.requests.events.publisher_request import PublisherRequest
+from orchestrator_sdk.contracts.requests.events.subscriber_request import SubscriberRequest
+from orchestrator_sdk.contracts.requests.application.sync_event_subscriptions import SyncEventSubscription
+from orchestrator_sdk.contracts.requests.application.sync_event_publishers import SyncEventPublishers
+from orchestrator_sdk.handlers.event_handlers.event_subscriber_base import EventSubscriberBase
+from orchestrator_sdk.handlers.event_handlers.event_publisher_base import EventPublisherBase
 from typing import Optional, List
 
 import requests

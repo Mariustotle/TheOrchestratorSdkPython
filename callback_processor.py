@@ -1,11 +1,11 @@
 from typing import Dict, List
-from sdk.handlers.command_handlers.concurrent_command_handler_base import CommandHandlerBase
-from sdk.handlers.event_handlers.event_subscriber_base import EventSubscriberBase
-from sdk.handlers.event_handlers.event_publisher_base import EventPublisherBase
+from orchestrator_sdk.handlers.command_handlers.concurrent_command_handler_base import CommandHandlerBase
+from orchestrator_sdk.handlers.event_handlers.event_subscriber_base import EventSubscriberBase
+from orchestrator_sdk.handlers.event_handlers.event_publisher_base import EventPublisherBase
 
-from sdk.contracts.types.action_type import ActionType
-from sdk.contracts.types.message_type import MessageType
-from sdk.contracts.types.process_structure import ProcessStructure
+from orchestrator_sdk.contracts.types.action_type import ActionType
+from orchestrator_sdk.contracts.types.message_type import MessageType
+from orchestrator_sdk.contracts.types.process_structure import ProcessStructure
 
 class CallbackProcessor:
     

@@ -1,6 +1,6 @@
 from typing import TypeVar, Optional, List
-from sdk.handlers.command_handlers.command_hander_base import CommandHandlerBase
-from sdk.contracts.requests.commands.concurrent_command_request import ConcurrentCommandRequest
+from orchestrator_sdk.handlers.command_handlers.command_hander_base import CommandHandlerBase
+from orchestrator_sdk.contracts.requests.commands.concurrent_command_request import ConcurrentCommandRequest
 
 import json
 

@@ -1,10 +1,10 @@
 from abc import ABC, abstractmethod
 from typing import TypeVar, Generic, Optional, List
-from sdk.contracts.orchestrator_config import OrchestratorConfig
+from orchestrator_sdk.contracts.orchestrator_config import OrchestratorConfig
 from seedworks.config_reader import ConfigReader
 from seedworks.logger import Logger
-from sdk.contracts.requests.events.publish_event_request import PublishEventRequest
-from sdk.data_access.orchestrator_publisher import OrchestratorPublisher
+from orchestrator_sdk.contracts.requests.events.publish_event_request import PublishEventRequest
+from orchestrator_sdk.data_access.orchestrator_publisher import OrchestratorPublisher
 
 T = TypeVar('T')
 

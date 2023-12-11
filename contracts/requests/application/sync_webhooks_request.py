@@ -1,6 +1,6 @@
 from typing import Optional, List
 from pydantic import BaseModel
-from sdk.contracts.requests.webhooks.webhook_request import WebhookRequest
+from orchestrator_sdk.contracts.requests.webhooks.webhook_request import WebhookRequest
 
 class SyncWebhooksRequest(BaseModel):    
     

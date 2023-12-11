@@ -1,6 +1,6 @@
 from typing import List
 from pydantic import BaseModel
-from sdk.contracts.requests.events.publisher_request import PublisherRequest
+from orchestrator_sdk.contracts.requests.events.publisher_request import PublisherRequest
 
 class SyncEventPublishers(BaseModel):    
     

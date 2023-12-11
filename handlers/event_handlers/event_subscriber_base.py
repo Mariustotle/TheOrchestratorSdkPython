@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 from typing import TypeVar, Generic, Optional, List
-from sdk.contracts.orchestrator_config import OrchestratorConfig
+from orchestrator_sdk.contracts.orchestrator_config import OrchestratorConfig
 from seedworks.config_reader import ConfigReader
 from seedworks.logger import Logger
 

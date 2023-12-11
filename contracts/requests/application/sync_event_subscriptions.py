@@ -1,6 +1,6 @@
 from typing import Optional, List
 from pydantic import BaseModel
-from sdk.contracts.requests.events.subscriber_request import SubscriberRequest
+from orchestrator_sdk.contracts.requests.events.subscriber_request import SubscriberRequest
 
 class SyncEventSubscription(BaseModel):    
     
