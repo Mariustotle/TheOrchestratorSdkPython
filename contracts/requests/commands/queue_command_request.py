@@ -1,5 +1,5 @@
 from typing import Optional
-from pydantic import BaseModel
+from pydantic import BaseModel, UUID4
 
 class QueueCommandRequest(BaseModel):    
     
@@ -11,9 +11,10 @@ class QueueCommandRequest(BaseModel):
     Content: Optional[str] = None
     ProcessWebhookName:str = None
     OnSuccessWebhookName:Optional[str] = None
-    SessionReference:Optional[str] = None
+    SourceMessageId: Optional[UUID4] = None
+    GroupTraceKey: Optional[UUID4] = None
     RemainingQueueItems:Optional[int] = None
-    DispatcherName:Optional[str] = None 
+    Dispatcher:Optional[str] = None 
     BlockRetry:Optional[bool] = None    
     DeDuplicate:Optional[bool] = None
     UniqueInteractionHeader:Optional[str] = None
@@ -27,11 +28,12 @@ class QueueCommandRequest(BaseModel):
                on_success_webhook_name:Optional[str] = None,     
                de_duplicate:bool = False,
                remaining_queue_count:Optional[int] = None,               
-               dispatcher_name: Optional[str] = None,
+               dispatcher: Optional[str] = None,
                unique_interaction_header:Optional[str] = None,
                content:Optional[str] = None,
                command_reference:Optional[str] = None,
-               session_reference:Optional[str] = None,
+               source_message_id:Optional[UUID4] = None,
+               group_trace_key:Optional[UUID4] = None,  
                block_retry:Optional[str] = None,
                command_version:Optional[str] = None):       
 
@@ -43,9 +45,10 @@ class QueueCommandRequest(BaseModel):
         self.CommandReference = command_reference 
         self.ProcessWebhookName = process_wenhook_name
         self.OnSuccessWebhookName = on_success_webhook_name
-        self.DispatcherName = dispatcher_name
+        self.Dispatcher = dispatcher
         self.Content = content
-        self.SessionReference = session_reference
+        self.SourceMessageId = source_message_id
+        self.GroupTraceKey = group_trace_key
         self.DeDuplicate = de_duplicate
         self.UniqueInteractionHeader = unique_interaction_header
         self.BlockRetry = block_retry

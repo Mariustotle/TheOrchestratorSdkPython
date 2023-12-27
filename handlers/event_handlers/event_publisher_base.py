@@ -52,11 +52,11 @@ class EventPublisherBase(ABC, Generic[T]):
         
         return request     
 
-    async def publish(self, external_reference:str, request:PublishEventRequest) -> None:
+    async def publish(self, reference:str, request:PublishEventRequest) -> None:
                     
         if (self.process_locally): 
             # Try sending to Orchestrator and fallbck to a SQLite outbox pattern
             pass
             
         else:
-            await self.publisher.post(request=request, url=self.publish_url, description=f'Event publisher for {self.message_name}', external_reference=external_reference)           
+            await self.publisher.post(request=request, url=self.publish_url, description=f'Event publisher for {self.message_name}', reference=reference)           

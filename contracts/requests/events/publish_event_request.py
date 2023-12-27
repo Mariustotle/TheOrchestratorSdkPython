@@ -1,6 +1,6 @@
 
 from typing import Optional
-from pydantic import BaseModel
+from pydantic import BaseModel, UUID4
 
 class PublishEventRequest(BaseModel):    
     
@@ -9,7 +9,8 @@ class PublishEventRequest(BaseModel):
     EventVersion:Optional[str] = None
     EventReference:Optional[str] = None
     Content:Optional[str] = None
-    SessionReference:Optional[str] = None
+    source_message_id:Optional[UUID4] = None,
+    group_trace_key:Optional[UUID4] = None,  
     Priority:Optional[int] = None
     DeDuplicate:bool = None
     UniqueInteractionHeader: Optional[str] = None
@@ -22,7 +23,8 @@ class PublishEventRequest(BaseModel):
                priority:Optional[int] = None,
                content:Optional[str] = None,
                event_reference:Optional[str] = None,
-               session_reference:Optional[str] = None,
+               source_message_id:Optional[UUID4] = None,
+               group_trace_key:Optional[UUID4] = None,  
                event_version:Optional[str] = None):       
 
         self.ApplicationName = application_name
@@ -30,7 +32,8 @@ class PublishEventRequest(BaseModel):
         self.EventVersion = event_version
         self.EventReference = event_reference
         self.Content = content
-        self.SessionReference = session_reference
+        self.SourceMessageId = source_message_id
+        self.GroupTraceKey = group_trace_key
         self.Priority = priority
         self.DeDuplicate = de_duplicate
         self.UniqueInteractionHeader = unique_interaction_header

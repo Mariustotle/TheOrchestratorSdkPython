@@ -89,7 +89,7 @@ class SyncService():
             
             for handler in event_subscribers:
                 subscription = SubscriberRequest().Create(
-                    dispatcher_name=handler.processor_name, 
+                    dispatcher=handler.processor_name, 
                     event_name=handler.message_name, 
                     webhook_name=handler.process_webhook_name,
                     event_version=handler.message_version)

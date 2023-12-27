@@ -1,6 +1,8 @@
 
 from typing import Optional
-from pydantic import BaseModel
+from pydantic import BaseModel, UUID4
+
+import uuid
 
 class ConcurrentCommandRequest(BaseModel):    
     
@@ -9,12 +11,13 @@ class ConcurrentCommandRequest(BaseModel):
     CommandVersion: Optional[str] = None
     Content: Optional[str] = None
     ProcessWebhookName: str = None
-    OnSuccessWebhookName: Optional[str] = None
-    SessionReference: Optional[str] = None
+    OnSuccessWebhookName: Optional[str] = None    
+    SourceMessageId: Optional[UUID4] = None
+    GroupTraceKey: Optional[UUID4] = None    
     Priority:Optional[int] = None
     DeDuplicate: Optional[bool] = None
     UniqueInteractionHeader: Optional[str] = None
-    DispatcherName: Optional[str] = None 
+    Dispatcher: Optional[str] = None 
     BlockRetry:Optional[bool] = None
     ApplicationName:str = None
 
@@ -25,12 +28,13 @@ class ConcurrentCommandRequest(BaseModel):
                              
                on_success_webhook_name:Optional[str] = None,     
                de_duplicate:bool = False,               
-               dispatcher_name: Optional[str] = None,
+               dispatcher: Optional[str] = None,
                unique_interaction_header:Optional[str] = None,
                priority:Optional[int] = None,
                content:Optional[str] = None,
                command_reference:Optional[str] = None,
-               session_reference:Optional[str] = None,
+               source_message_id:Optional[UUID4] = None,
+               group_trace_key:Optional[UUID4] = None,               
                block_retry:Optional[str] = None,
                command_version:Optional[str] = None):       
 
@@ -40,9 +44,10 @@ class ConcurrentCommandRequest(BaseModel):
         self.CommandReference = command_reference 
         self.ProcessWebhookName = process_wenhook_name
         self.OnSuccessWebhookName = on_success_webhook_name
-        self.DispatcherName = dispatcher_name
+        self.Dispatcher = dispatcher
         self.Content = content
-        self.SessionReference = session_reference
+        self.SourceMessageId = source_message_id
+        self.GroupTraceKey = group_trace_key
         self.Priority = priority
         self.DeDuplicate = de_duplicate
         self.UniqueInteractionHeader = unique_interaction_header

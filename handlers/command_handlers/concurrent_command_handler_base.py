@@ -25,7 +25,7 @@ class ConcurrentCommandHandlerBase(CommandHandlerBase[T, Y]):
                 command_name=command_name, command_reference=client_reference,
                 content=serialized_payload, process_wenhook_name=self.process_webhook_name,
                 on_success_webhook_name=self.on_success_webhook_name, 
-                dispatcher_name=self.processor_name, application_name=self.application_name)
+                dispatcher=self.processor_name, application_name=self.application_name)
        
         return request     
 

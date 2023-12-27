@@ -48,37 +48,37 @@ class CommandHandlerBase(ABC, Generic[T, Y]):
         pass
     
     @abstractmethod
-    async def _process(self, request: T, name:str, external_reference:Optional[str]) -> Y:
+    async def _process(self, request: T, name:str, reference:Optional[str]) -> Y:
         pass
     
     @abstractmethod
-    async def _on_success(self, request: Y, name:str, external_reference:Optional[str]):
+    async def _on_success(self, request: Y, name:str, reference:Optional[str]):
         pass       
     
-    async def publish(self, request, external_reference:Optional[str] = None):
+    async def publish(self, request, reference:Optional[str] = None):
                     
         if (self.process_locally): 
             # Need to inflate the payload as well
             # inflated = self.from_json(request.RequestPayload, self.process_request_type)
-            response = await self.process(request.RequestPayload, message_name=request.CommandName, external_reference=external_reference)
-            await self.on_success(request=response, message_name=request.CommandName, external_reference=external_reference)
+            response = await self.process(request.RequestPayload, message_name=request.CommandName, reference=reference)
+            await self.on_success(request=response, message_name=request.CommandName, reference=reference)
             
             return response
             
         else:
-            response = await self.publisher.post(request, self.publish_url, f'Command Publisher for {self.processor_name}', external_reference=external_reference)                        
+            response = await self.publisher.post(request, self.publish_url, f'Command Publisher for {self.processor_name}', reference=reference)                        
             return response
             
-    async def process(self, request: T, message_name:str, external_reference:Optional[str]) -> Y:
+    async def process(self, request: T, message_name:str, reference:Optional[str]) -> Y:
         if self.message_name.lower() != message_name.lower():
             raise ValueError(f'Trying to process message [{message_name}] in handler [{self.processor_name}] but it is not a supported.')
         
-        response = await self._process(request, message_name, external_reference)        
+        response = await self._process(request, message_name, reference)        
         return response    
 
-    async def on_success(self, request: T, message_name:str, external_reference:Optional[str]):
+    async def on_success(self, request: T, message_name:str, reference:Optional[str]):
         if self.message_name.lower() != message_name.lower():
             raise ValueError(f'Trying to complete message [{message_name}] in handler [{self.processor_name}] but it is not a supported message.') 
         
-        response = await self._on_success(request, message_name, external_reference)        
+        response = await self._on_success(request, message_name, reference)        
         return response

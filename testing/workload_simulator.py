@@ -7,13 +7,11 @@ import asyncio
 import random
 
 class WorkloadSimulator(BaseModel):
-    blocked_percentage_in_seconds: Optional[int] = None        
+    blocked_percentage_in_seconds: Optional[int] = None
     exception_percentage: Optional[int] = None
-    permanent_exception_percentage: Optional[int] = None    
+    permanent_exception_percentage: Optional[int] = None
     fastest_time: int = 0
-    slowest_time: int = 0   
-  
-
+    slowest_time: int = 0
         
     def set_execution_span(self, fastest_time_in_seconds: int, slowest_time_in_seconds: int) -> 'WorkloadSimulator':
         if (fastest_time_in_seconds > slowest_time_in_seconds):

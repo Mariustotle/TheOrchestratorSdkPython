@@ -40,12 +40,12 @@ class EventSubscriberBase(ABC, Generic[T]):
         self.message_name = message_name
         
     @abstractmethod
-    async def _process(self, request: T, name:str, external_reference:Optional[str]) -> None:
+    async def _process(self, request: T, name:str, reference:Optional[str]) -> None:
         pass    
             
-    async def process(self, request: T, message_name:str, external_reference:Optional[str]) -> None:
+    async def process(self, request: T, message_name:str, reference:Optional[str]) -> None:
         if self.message_name.lower() != message_name.lower():
             raise ValueError(f'Trying to process message [{message_name}] in handler [{self.processor_name}] but it is not a supported.')
-        return await self._process(request, message_name, external_reference)
+        return await self._process(request, message_name, reference)
     
 
