@@ -1,8 +1,8 @@
 from typing import TypeVar, Optional, List
+
 from orchestrator_sdk.handlers.command_handlers.command_hander_base import CommandHandlerBase
 from orchestrator_sdk.contracts.requests.commands.queue_command_request import QueueCommandRequest
-
-import json
+from orchestrator_sdk.callback_context import CallbackContext
 
 T = TypeVar('T')
 Y = TypeVar('Y')
@@ -19,14 +19,17 @@ class QueueCommandHandlerBase(CommandHandlerBase[T, Y]):
         self.queue_name = queue_name
         
     def build_request(self, command_name:str, payload:T, client_reference:Optional[str] = None) -> QueueCommandRequest:     
-        
         serialized_payload = payload.json()
+        
+        source_message_id = None        
+        if CallbackContext.is_available():
+            source_message_id = CallbackContext.message_id
         
         request = QueueCommandRequest().Create(
                 queue_name=self.queue_name, command_name=command_name, command_reference=client_reference,
                 content=serialized_payload, process_wenhook_name=self.process_webhook_name, 
                 on_success_webhook_name=self.on_success_webhook_name, dispatcher=self.processor_name,
-                application_name=self.application_name)
+                application_name=self.application_name, source_message_id=source_message_id)
         
         return request     
        

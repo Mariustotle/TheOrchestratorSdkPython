@@ -1,17 +1,18 @@
 from abc import ABC, abstractmethod
 from typing import TypeVar, Generic, Optional, List
-from orchestrator_sdk.contracts.orchestrator_config import OrchestratorConfig
 from seedworks.config_reader import ConfigReader
 from seedworks.logger import Logger
+
+from orchestrator_sdk.contracts.orchestrator_config import OrchestratorConfig
 from orchestrator_sdk.contracts.requests.events.publish_event_request import PublishEventRequest
 from orchestrator_sdk.data_access.orchestrator_publisher import OrchestratorPublisher
+from orchestrator_sdk.callback_context import CallbackContext
 
 T = TypeVar('T')
 
 logger = Logger.get_instance()
 
-class EventPublisherBase(ABC, Generic[T]):
-    
+class EventPublisherBase(ABC, Generic[T]):    
     message_name:str = None
     payload_type:type = None
     application_name:str = None
@@ -42,13 +43,16 @@ class EventPublisherBase(ABC, Generic[T]):
         
         self.publisher = OrchestratorPublisher()
    
-    def build_request(self, event_name:str, payload:T, client_reference:Optional[str] = None) -> PublishEventRequest:     
+    def build_request(self, event_name:str, payload:T, client_reference:Optional[str] = None) -> PublishEventRequest:        
+        serialized_payload = payload.json()
         
-        serialized_payload = payload.json()     
+        source_message_id = None        
+        if CallbackContext.is_available():
+            source_message_id = CallbackContext.message_id
         
         request = PublishEventRequest().Create(
             application_name=self.application_name, event_name=event_name, event_version=self.message_version, 
-            event_reference=client_reference, content=serialized_payload)
+            event_reference=client_reference, content=serialized_payload, source_message_id=source_message_id)
         
         return request     
 

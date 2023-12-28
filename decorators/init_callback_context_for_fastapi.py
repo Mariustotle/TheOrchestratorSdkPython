@@ -11,6 +11,7 @@ def init_callback_context_for_fastapi(func):
         if request:            
             # From HTTP Header
             account_id = request.headers.get("AccountId")
+            application_name = request.headers.get("ApplicationName")
             
             # From Query String
             reference = request.query_params.get("Reference")
@@ -19,7 +20,7 @@ def init_callback_context_for_fastapi(func):
             message_type = request.query_params.get("MessageType")       
             group_trace_key = request.query_params.get("GroupTraceKey")
             dispatcher = request.query_params.get("Dispatcher")
-            action_type = request.query_params.get("ActionType")
+            action = request.query_params.get("ActionType")
             
             with CallbackContext(
                 account_id=account_id,
@@ -29,7 +30,8 @@ def init_callback_context_for_fastapi(func):
                 message_name=message_name,
                 message_type = message_type,
                 reference=reference,
-                action_type=action_type):             
+                action=action,
+                application_name=application_name):             
                 
                 return await func(*args, **kwargs)
         else:

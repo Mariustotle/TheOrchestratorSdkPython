@@ -12,7 +12,6 @@ class QueueCommandRequest(BaseModel):
     ProcessWebhookName:str = None
     OnSuccessWebhookName:Optional[str] = None
     SourceMessageId: Optional[UUID4] = None
-    GroupTraceKey: Optional[UUID4] = None
     RemainingQueueItems:Optional[int] = None
     Dispatcher:Optional[str] = None 
     BlockRetry:Optional[bool] = None    
@@ -33,7 +32,6 @@ class QueueCommandRequest(BaseModel):
                content:Optional[str] = None,
                command_reference:Optional[str] = None,
                source_message_id:Optional[UUID4] = None,
-               group_trace_key:Optional[UUID4] = None,  
                block_retry:Optional[str] = None,
                command_version:Optional[str] = None):       
 
@@ -48,7 +46,6 @@ class QueueCommandRequest(BaseModel):
         self.Dispatcher = dispatcher
         self.Content = content
         self.SourceMessageId = source_message_id
-        self.GroupTraceKey = group_trace_key
         self.DeDuplicate = de_duplicate
         self.UniqueInteractionHeader = unique_interaction_header
         self.BlockRetry = block_retry

@@ -8,13 +8,13 @@ from orchestrator_sdk.handlers.event_handlers.event_publisher_base import EventP
 
 from orchestrator_sdk.contracts.types.action_type import ActionType
 from orchestrator_sdk.contracts.types.message_type import MessageType
-from orchestrator_sdk.contracts.types.process_structure import ProcessStructure
 
 class CallbackProcessor:
     
     command_handlers: dict[str, CommandHandlerBase] = {} 
     event_handlers: dict[str, EventSubscriberBase] = {}
-    event_publishers: dict[str, EventPublisherBase] = {}   
+    event_publishers: dict[str, EventPublisherBase] = {}
+    application_name: str
 
     def from_json(self, json_payload, class_type):
         
@@ -29,7 +29,7 @@ class CallbackProcessor:
     def __init__(self, command_handlers, event_handlers, event_publishers): 
         self.command_handlers = command_handlers
         self.event_handlers = event_handlers
-        self.event_publishers = event_publishers     
+        self.event_publishers = event_publishers
    
     async def _process_command(self, processor_name:str, reference:str, message_name:str, action_type:ActionType, json_payload:str):        
         handler = self.command_handlers[processor_name]
@@ -48,21 +48,31 @@ class CallbackProcessor:
         return await handler.process(request=request, message_name=message_name, reference=reference)    
     
         
-    def process(self, json_payload):
+    def process(self, json_payload):        
+       
+        if (not CallbackContext.is_available()):
+            raise Exception(f"Unable to process callback, please verify that you have added the [@init_callback_context_for_xxx] decoration to the API method")
         
-        accountId:UUID4 = CallbackContext.account_id.get()
-        group_trace_key:UUID4 = CallbackContext.group_trace_key.get()
-        message_id:UUID4 = CallbackContext.message_id.get()  
-        action_type:ActionType = CallbackContext.action_type.get()
-        dispatcher:str = CallbackContext.dispatcher.get()
-        reference:str = CallbackContext.reference.get()
-        message_name:str = CallbackContext.message_name.get()
-        message_type:str = CallbackContext.message_type.get()
+        message_name:str = CallbackContext.message_name.get()   
+        intented_application_name = CallbackContext.application_name.get()
+        
+        application_name_matched = self.application_name != None and intented_application_name != None and intented_application_name.lower() == self.application_name.lower()
+        
+        if (not application_name_matched):
+            raise Exception(f"You are trying to process [{message_name}] that is intended for application [{intented_application_name}] on this application [{self.application_name}]")
+        
+        dispatcher:str = CallbackContext.dispatcher.get()        
+        action_string = CallbackContext.action.get()
+        action:ActionType = ActionType[action_string] 
+        message_type_string = CallbackContext.message_type.get()
+        message_type:str = MessageType[message_type_string]        
+             
+        reference:str = CallbackContext.reference.get()      
         
         if (message_type == MessageType.Command):            
             return self._process_command(
                 processor_name=dispatcher, reference=reference, 
-                message_name=message_name, action_type=action_type, json_payload=json_payload
+                message_name=message_name, action_type=action, json_payload=json_payload
             )
         
         elif (message_type == MessageType.Event):

@@ -21,8 +21,8 @@ class OrchestrationApp():
     
     processor:CallbackProcessor = None
     
-    async def process_request(self, jsonPayload, query_parms):     
-        return await self.processor.process(jsonPayload, query_parms)
+    async def process_request(self, jsonPayload):     
+        return await self.processor.process(jsonPayload)
     
     def add_command_handler(self, handler:CommandHandlerBase):
         self.command_handlers[handler.processor_name] = handler
@@ -43,6 +43,8 @@ class OrchestrationApp():
         orchestrator_settings = ConfigReader.section('orchestrator', OrchestratorConfig)
         
         self.application_name = orchestrator_settings.application_name
+        self.processor.application_name = self.application_name
+        
         self.endpoints = Endpoints(orchestrator_settings.base_url)
         
         subscriptions = self.event_handlers.values()
