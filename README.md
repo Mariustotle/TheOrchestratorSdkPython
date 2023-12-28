@@ -20,3 +20,9 @@ Update external (submodules) git repositories to latest remote version
 `git commit -am "Updated submodule to latest commit"`
 
 
+## How to make changes to the submodule from the main respository
+This will only be allowed if you have write access to the SDK, this should be a limit amount of people.
+1. Make the changes until you are happy that everything is working as needed (SDK and Main Repo)
+2. In Fork under submodules open the submodule (a) check that the "main" branch is selected and commit the pending changes > Push changes
+3. Go back to the main repo and right click on the submodule and update
+
