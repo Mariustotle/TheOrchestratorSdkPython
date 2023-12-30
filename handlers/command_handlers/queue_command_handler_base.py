@@ -18,7 +18,7 @@ class QueueCommandHandlerBase(CommandHandlerBase[T, Y]):
                          use_success_webhook=use_success_webhook, publish_path=self.publish_path)
         self.queue_name = queue_name
         
-    def build_request(self, command_name:str, payload:T, client_reference:Optional[str] = None) -> QueueCommandRequest:     
+    def build_request(self, payload:T, client_reference:Optional[str] = None) -> QueueCommandRequest:     
         serialized_payload = payload.json()
         
         source_message_id = None        
@@ -26,7 +26,7 @@ class QueueCommandHandlerBase(CommandHandlerBase[T, Y]):
             source_message_id = CallbackContext.message_id
         
         request = QueueCommandRequest().Create(
-                queue_name=self.queue_name, command_name=command_name, command_reference=client_reference,
+                queue_name=self.queue_name, command_name=self.message_name, command_reference=client_reference,
                 content=serialized_payload, process_wenhook_name=self.process_webhook_name, 
                 on_success_webhook_name=self.on_success_webhook_name, dispatcher=self.processor_name,
                 application_name=self.application_name, source_message_id=source_message_id)

@@ -19,7 +19,7 @@ class ConcurrentCommandHandlerBase(CommandHandlerBase[T, Y]):
                          use_success_webhook=use_success_webhook, publish_path=self.publish_path)
         
         
-    def build_request(self, command_name:str, payload:T, client_reference:Optional[str] = None) -> ConcurrentCommandRequest:        
+    def build_request(self, payload:T, client_reference:Optional[str] = None) -> ConcurrentCommandRequest:        
         serialized_payload = payload.json()
         
         source_message_id = None        
@@ -27,7 +27,7 @@ class ConcurrentCommandHandlerBase(CommandHandlerBase[T, Y]):
             source_message_id = CallbackContext.message_id
         
         request = ConcurrentCommandRequest().Create(
-                command_name=command_name, command_reference=client_reference,
+                command_name=self.message_name, command_reference=client_reference,
                 content=serialized_payload, process_wenhook_name=self.process_webhook_name,
                 on_success_webhook_name=self.on_success_webhook_name, 
                 dispatcher=self.processor_name, application_name=self.application_name, source_message_id=source_message_id)

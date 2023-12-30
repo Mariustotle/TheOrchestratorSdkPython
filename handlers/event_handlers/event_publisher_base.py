@@ -43,7 +43,7 @@ class EventPublisherBase(ABC, Generic[T]):
         
         self.publisher = OrchestratorPublisher()
    
-    def build_request(self, event_name:str, payload:T, client_reference:Optional[str] = None) -> PublishEventRequest:        
+    def build_request(self, payload:T, client_reference:Optional[str] = None) -> PublishEventRequest:        
         serialized_payload = payload.json()
         
         source_message_id = None        
@@ -51,7 +51,7 @@ class EventPublisherBase(ABC, Generic[T]):
             source_message_id = CallbackContext.message_id
         
         request = PublishEventRequest().Create(
-            application_name=self.application_name, event_name=event_name, event_version=self.message_version, 
+            application_name=self.application_name, event_name=self.message_name, event_version=self.message_version, 
             event_reference=client_reference, content=serialized_payload, source_message_id=source_message_id)
         
         return request     
