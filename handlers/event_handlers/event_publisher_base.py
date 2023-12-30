@@ -43,20 +43,22 @@ class EventPublisherBase(ABC, Generic[T]):
         
         self.publisher = OrchestratorPublisher()
    
-    def build_request(self, payload:T, client_reference:Optional[str] = None) -> PublishEventRequest:        
-        serialized_payload = payload.json()
+    def build_request(self, request_object:T, reference:Optional[str] = None) -> PublishEventRequest:        
+        serialized_payload = request_object.json()
         
-        source_message_id = None        
+        source_message_id = None
+        group_trace_id = None
         if CallbackContext.is_available():
-            source_message_id = CallbackContext.message_id
+            source_message_id = CallbackContext.message_id.get()
+            group_trace_id = CallbackContext.group_trace_key.get()
         
         request = PublishEventRequest().Create(
             application_name=self.application_name, event_name=self.message_name, event_version=self.message_version, 
-            event_reference=client_reference, content=serialized_payload, source_message_id=source_message_id)
+            event_reference=reference, content=serialized_payload, source_message_id=source_message_id, group_trace_id=group_trace_id)
         
         return request     
 
-    async def publish(self, reference:str, request:PublishEventRequest) -> None:
+    async def publish(self, request:PublishEventRequest, reference:str) -> None:
                     
         if (self.process_locally): 
             # Try sending to Orchestrator and fallbck to a SQLite outbox pattern

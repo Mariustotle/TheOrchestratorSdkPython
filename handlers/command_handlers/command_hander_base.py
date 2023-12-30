@@ -44,7 +44,7 @@ class CommandHandlerBase(ABC, Generic[T, Y]):
         self.publisher = OrchestratorPublisher()
         
     @abstractmethod
-    def build_request(self, message_name:str, payload:T, client_reference:Optional[str] = None):
+    def build_request(self, request_object:T, reference:Optional[str] = None):
         pass
     
     @abstractmethod
@@ -60,7 +60,7 @@ class CommandHandlerBase(ABC, Generic[T, Y]):
         if (self.process_locally): 
             # Need to inflate the payload as well
             # inflated = self.from_json(request.RequestPayload, self.process_request_type)
-            response = await self.process(request.RequestPayload, message_name=request.CommandName, reference=reference)
+            response = await self.process(request, message_name=request.CommandName, reference=reference)
             await self.on_success(request=response, message_name=request.CommandName, reference=reference)
             
             return response

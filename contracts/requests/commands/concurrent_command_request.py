@@ -10,6 +10,7 @@ class ConcurrentCommandRequest(BaseModel):
     ProcessWebhookName: str = None
     OnSuccessWebhookName: Optional[str] = None    
     SourceMessageId: Optional[UUID4] = None
+    GroupTraceKey: Optional[UUID4] = None
     Priority:Optional[int] = None
     DeDuplicate: Optional[bool] = None
     UniqueInteractionHeader: Optional[str] = None
@@ -29,7 +30,7 @@ class ConcurrentCommandRequest(BaseModel):
                content:Optional[str] = None,
                command_reference:Optional[str] = None,
                source_message_id:Optional[UUID4] = None,
-            
+               group_trace_key:Optional[UUID4] = None,
                block_retry:Optional[str] = None,
                command_version:Optional[str] = None):       
 
@@ -42,6 +43,7 @@ class ConcurrentCommandRequest(BaseModel):
         self.Dispatcher = dispatcher
         self.Content = content
         self.SourceMessageId = source_message_id
+        self.GroupTraceKey = group_trace_key
         self.Priority = priority
         self.DeDuplicate = de_duplicate
         self.UniqueInteractionHeader = unique_interaction_header
