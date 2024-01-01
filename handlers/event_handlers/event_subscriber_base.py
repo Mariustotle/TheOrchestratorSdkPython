@@ -4,9 +4,6 @@ from orchestrator_sdk.contracts.orchestrator_config import OrchestratorConfig
 from seedworks.config_reader import ConfigReader
 from seedworks.logger import Logger
 
-import requests
-import json
-
 T = TypeVar('T')
 
 logger = Logger.get_instance()
@@ -21,13 +18,13 @@ class EventSubscriberBase(ABC, Generic[T]):
     request_version:Optional[str] = None
  
    
-    def __init__(self, processor_name:str, event_name:str, request_version:Optional[str] = None) -> None:
+    def __init__(self, processor_name:str, event_name:str, request_type:type, request_version:Optional[str] = None) -> None:
         super().__init__()
         
         ConfigReader.load()        
         orchestrator_settings = ConfigReader.section('orchestrator', OrchestratorConfig)
         
-        self.request_type = Type[T]
+        self.request_type = request_type
         self.request_version = request_version
         self.event_name = event_name
        
@@ -41,9 +38,9 @@ class EventSubscriberBase(ABC, Generic[T]):
     async def _process(self, request: T, name:str, reference:Optional[str]) -> None:
         pass    
             
-    async def process(self, request: T, message_name:str, reference:Optional[str]) -> None:
-        if self.message_name.lower() != message_name.lower():
-            raise ValueError(f'Trying to process message [{message_name}] in handler [{self.processor_name}] but it is not a supported.')
-        return await self._process(request, message_name, reference)
+    async def process(self, request: T, event_name:str, reference:Optional[str]) -> None:
+        if self.event_name.lower() != event_name.lower():
+            raise ValueError(f'Trying to process message [{event_name}] in handler [{self.processor_name}] but it is not a supported.')
+        return await self._process(request, event_name, reference)
     
 

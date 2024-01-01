@@ -14,7 +14,7 @@ logger = Logger.get_instance()
 
 class EventPublisherBase(ABC, Generic[T]):    
     event_name:str = None
-    request_type:type = None
+    request_type:Type[T] = None
     request_version:Optional[str] = None
     application_name:str = None
     publisher:OrchestratorPublisher = None
@@ -24,7 +24,7 @@ class EventPublisherBase(ABC, Generic[T]):
     publish_path:str = '/Events/PublishEvent' 
  
    
-    def __init__(self, processor_name:str, event_name:str, request_version:Optional[str] = None) -> None:
+    def __init__(self, processor_name:str, event_name:str, request_type:type, request_version:Optional[str] = None) -> None:
         super().__init__()
         
         ConfigReader.load()
@@ -32,7 +32,7 @@ class EventPublisherBase(ABC, Generic[T]):
         
         self.publish_url = f'{orchestrator_settings.base_url}{self.publish_path}'
         
-        self.request_type = Type[T]
+        self.request_type =  request_type
         self.request_version = request_version
        
         self.process_locally = orchestrator_settings.process_locally

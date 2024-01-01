@@ -31,21 +31,17 @@ class CallbackProcessor:
         self.event_handlers = event_handlers
         self.event_publishers = event_publishers
    
-    async def _process_command(self, processor_name:str, reference:str, message_name:str, action_type:ActionType, json_payload:str):        
+    async def _process_command(self, processor_name:str, reference:str, command_name:str, action_type:ActionType, json_payload:str):        
         handler = self.command_handlers[processor_name]
         
         if (action_type == ActionType.Process):
-            request =  self.from_json(json_payload, handler.process_request_type)
-            return await handler.process(request=request, message_name=message_name, reference=reference)            
-        
-        if (action_type == ActionType.OnSuccess):
-            request =  self.from_json(json_payload, handler.on_success_class_type)          
-            return await handler.on_success(request=request, message_name=message_name, reference=reference)
+            request =  self.from_json(json_payload, handler.request_type)
+            return await handler.process(request=request, command_name=command_name, reference=reference)            
     
-    async def _process_event(self, processor_name:str, reference:str, message_name:str, json_payload:str):        
+    async def _process_event(self, processor_name:str, reference:str, event_name:str, json_payload:str):        
         handler = self.event_handlers[processor_name]        
-        request =  self.from_json(json_payload, handler.process_request_type)
-        return await handler.process(request=request, message_name=message_name, reference=reference)    
+        request =  self.from_json(json_payload, handler.request_type)
+        return await handler.process(request=request, event_name=event_name, reference=reference)    
     
         
     def process(self, json_payload):        
@@ -72,13 +68,13 @@ class CallbackProcessor:
         if (message_type == MessageType.Command):            
             return self._process_command(
                 processor_name=dispatcher, reference=reference, 
-                message_name=message_name, action_type=action, json_payload=json_payload
+                command_name=message_name, action_type=action, json_payload=json_payload
             )
         
         elif (message_type == MessageType.Event):
             return self._process_event(
                 processor_name=dispatcher, reference=reference, 
-                message_name=message_name, json_payload=json_payload
+                event_name=message_name, json_payload=json_payload
             )
 
 

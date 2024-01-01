@@ -90,9 +90,9 @@ class SyncService():
             for handler in event_subscribers:
                 subscription = SubscriberRequest().Create(
                     dispatcher=handler.processor_name, 
-                    event_name=handler.message_name, 
+                    event_name=handler.event_name, 
                     webhook_name=handler.process_webhook_name,
-                    event_version=handler.message_version)
+                    event_version=handler.request_version)
                 subscriptions.append(subscription)                
                 
             sync_request = SyncEventSubscription().Create(application_name=application_name, subscriptions=subscriptions)
@@ -112,9 +112,9 @@ class SyncService():
             
             for handler in event_publishers:
                 publisher = PublisherRequest().Create(
-                    event_name=handler.message_name, 
+                    event_name=handler.event_name, 
                     jason_schema=None, # Do this dynamically from the DTO
-                    latest_version=handler.message_version)
+                    latest_version=handler.request_version)
                 
                 publishers.append(publisher)                
                 
