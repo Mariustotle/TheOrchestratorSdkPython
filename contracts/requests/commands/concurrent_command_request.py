@@ -1,36 +1,36 @@
 from typing import Optional
 from pydantic import BaseModel, UUID4
 
+from orchestrator_sdk.contracts.requests.common.de_duplication_details import DeDuplicationDetails
+from orchestrator_sdk.contracts.requests.common.success_event_details import SuccessEventDetails
+from orchestrator_sdk.contracts.requests.common.tracing_data import TracingData
+
 class ConcurrentCommandRequest(BaseModel):    
     
+    Dispatcher: Optional[str] = None 
+    BlockRetry:Optional[bool] = None
+    ApplicationName:str = None
     CommandReference: Optional[str] = None
     CommandName: str = None
     CommandVersion: Optional[str] = None
     Content: Optional[str] = None
     ProcessWebhookName: str = None
-    OnSuccessWebhookName: Optional[str] = None    
-    SourceMessageId: Optional[UUID4] = None
-    GroupTraceKey: Optional[UUID4] = None
     Priority:Optional[int] = None
-    DeDuplicate: Optional[bool] = None
-    UniqueInteractionHeader: Optional[str] = None
-    Dispatcher: Optional[str] = None 
-    BlockRetry:Optional[bool] = None
-    ApplicationName:str = None
+    
+    DeDuplicationDetails:Optional[DeDuplicationDetails] = None
+    SuccessEventDetails:Optional[SuccessEventDetails] = None
+    TracingData:Optional[TracingData] = None
 
     def Create(self, 
                application_name:str,
                command_name:str,       
-               process_wenhook_name: str,
-               on_success_webhook_name:Optional[str] = None,     
-               de_duplicate:bool = False,               
+               process_wenhook_name: str,     
                dispatcher: Optional[str] = None,
-               unique_interaction_header:Optional[str] = None,
+               
                priority:Optional[int] = None,
                content:Optional[str] = None,
                command_reference:Optional[str] = None,
-               source_message_id:Optional[UUID4] = None,
-               group_trace_key:Optional[UUID4] = None,
+
                block_retry:Optional[str] = None,
                command_version:Optional[str] = None):       
 
@@ -39,14 +39,29 @@ class ConcurrentCommandRequest(BaseModel):
         self.CommandVersion = command_version
         self.CommandReference = command_reference 
         self.ProcessWebhookName = process_wenhook_name
-        self.OnSuccessWebhookName = on_success_webhook_name
         self.Dispatcher = dispatcher
         self.Content = content
-        self.SourceMessageId = source_message_id
-        self.GroupTraceKey = group_trace_key
         self.Priority = priority
-        self.DeDuplicate = de_duplicate
-        self.UniqueInteractionHeader = unique_interaction_header
-        self.BlockRetry = block_retry
+        self.BlockRetry = block_retry      
         
         return self 
+    
+    def PublishEventOnSuccess(self,
+            event_name:str,
+            event_version:str):
+        
+        self.SuccessEventDetails = SuccessEventDetails().Create(event_name=event_name, event_version=event_version)        
+        return self
+    
+    def AddTracingData(self,
+            source_message_id:UUID4,
+            group_trace_key:Optional[UUID4] = None):
+        
+        self.TracingData = TracingData().Create(source_message_id=source_message_id, group_trace_id=group_trace_key)
+        return self
+    
+    def AddDeDuplicationInstruction(self,
+            unique_interaction_header:Optional[str] = None):
+        
+        self.DeDuplicationDetails = DeDuplicationDetails().Create(de_duplicate=True, unique_interaction_header=unique_interaction_header)
+        return self

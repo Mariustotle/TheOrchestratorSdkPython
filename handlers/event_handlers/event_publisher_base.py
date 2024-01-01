@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import TypeVar, Generic, Optional, List
+from typing import TypeVar, Generic, Optional, List, Type
 from seedworks.config_reader import ConfigReader
 from seedworks.logger import Logger
 
@@ -13,10 +13,10 @@ T = TypeVar('T')
 logger = Logger.get_instance()
 
 class EventPublisherBase(ABC, Generic[T]):    
-    message_name:str = None
-    payload_type:type = None
+    event_name:str = None
+    request_type:type = None
+    request_version:Optional[str] = None
     application_name:str = None
-    message_version:Optional[str] = None
     publisher:OrchestratorPublisher = None
     publish_url:str = None
     processor_name:str = None
@@ -24,7 +24,7 @@ class EventPublisherBase(ABC, Generic[T]):
     publish_path:str = '/Events/PublishEvent' 
  
    
-    def __init__(self, processor_name:str, message_name:str, payload_type, message_version:Optional[str] = None) -> None:
+    def __init__(self, processor_name:str, event_name:str, request_version:Optional[str] = None) -> None:
         super().__init__()
         
         ConfigReader.load()
@@ -32,14 +32,14 @@ class EventPublisherBase(ABC, Generic[T]):
         
         self.publish_url = f'{orchestrator_settings.base_url}{self.publish_path}'
         
-        self.payload_type = payload_type
-        self.message_version = message_version
+        self.request_type = Type[T]
+        self.request_version = request_version
        
         self.process_locally = orchestrator_settings.process_locally
         self.application_name = orchestrator_settings.application_name
         
         self.processor_name = processor_name
-        self.message_name = message_name
+        self.event_name = event_name
         
         self.publisher = OrchestratorPublisher()
    
@@ -52,9 +52,14 @@ class EventPublisherBase(ABC, Generic[T]):
             source_message_id = CallbackContext.message_id.get()
             group_trace_id = CallbackContext.group_trace_key.get()
         
-        request = PublishEventRequest().Create(
-            application_name=self.application_name, event_name=self.message_name, event_version=self.message_version, 
-            event_reference=reference, content=serialized_payload, source_message_id=source_message_id, group_trace_id=group_trace_id)
+        request:PublishEventRequest = PublishEventRequest().Create(
+            application_name=self.application_name, event_name=self.event_name, event_version=self.request_version, 
+            event_reference=reference, content=serialized_payload)
+        
+        if (source_message_id != None):
+            request.AddTracingData(source_message_id=source_message_id, group_trace_key=group_trace_id)     
+
+        # Set DeDuplicate Details after building the base request using request.AddDeDuplicationInstruction()
         
         return request     
 
@@ -65,4 +70,4 @@ class EventPublisherBase(ABC, Generic[T]):
             pass
             
         else:
-            await self.publisher.post(request=request, url=self.publish_url, description=f'Event publisher for {self.message_name}', reference=reference)           
+            await self.publisher.post(request=request, url=self.publish_url, description=f'Event publisher for {self.event_name}', reference=reference)           
