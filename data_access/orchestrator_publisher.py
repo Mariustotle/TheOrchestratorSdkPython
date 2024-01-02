@@ -18,16 +18,16 @@ class OrchestratorPublisher():
         return response        
         
     
-    async def post(self, request, url:str, description:Optional[str] = "N/A", external_reference:Optional[str] = "N/A") -> Optional[str]:        
+    async def post(self, request, url:str, description:Optional[str] = "N/A", reference:Optional[str] = "N/A") -> Optional[str]:        
         
         try:
 
             response:Response = self._post(url, request)
             
             if not response.ok:
-                raise Exception(f"Failed to post [{description}] with reference [{external_reference}] to [{url}] with ErrorCode [{response.status_code}]. Error Details >> {response.content}")
+                raise Exception(f"Failed to post [{description}] with reference [{reference}] to [{url}] with ErrorCode [{response.status_code}]. Error Details >> {response.content}")
             
-            logger.info(f'Successfully posted [{description}] with reference [{external_reference}] to the orchestrator')
+            logger.info(f'Successfully posted [{description}] with reference [{reference}] to the orchestrator')
             
             return response
 
