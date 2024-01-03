@@ -1,8 +1,9 @@
 from abc import ABC, abstractmethod
-from typing import TypeVar, Generic, Optional, List, Type
-from orchestrator_sdk.contracts.orchestrator_config import OrchestratorConfig
-from seedworks.config_reader import ConfigReader
+from typing import TypeVar, Generic, Optional
 from seedworks.logger import Logger
+
+from seedworks.config_reader import ConfigReader
+from orchestrator_sdk.contracts.orchestrator_config import OrchestratorConfig
 
 T = TypeVar('T')
 
@@ -15,21 +16,19 @@ class EventSubscriberBase(ABC, Generic[T]):
     process_webhook_name:str = None
     request_type:type = None
     application_name:str = None
-    request_version:Optional[str] = None
- 
+    request_version:Optional[str] = None 
    
     def __init__(self, processor_name:str, event_name:str, request_type:type, request_version:Optional[str] = None) -> None:
-        super().__init__()
+        super().__init__()       
         
-        ConfigReader.load()        
-        orchestrator_settings = ConfigReader.section('orchestrator', OrchestratorConfig)
-        
+        config_reader = ConfigReader()
+        orchestrator_settings:OrchestratorConfig = config_reader.section('orchestrator', OrchestratorConfig)   
+      
         self.request_type = request_type
         self.request_version = request_version
         self.event_name = event_name
-       
-        self.process_locally = orchestrator_settings.process_locally
-        self.process_webhook_name = orchestrator_settings.default_callback_webhook['name']
+
+        self.process_webhook_name = orchestrator_settings.default_callback_webhook.name
         self.application_name = orchestrator_settings.application_name
         
         self.processor_name = processor_name        

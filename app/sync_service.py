@@ -40,10 +40,10 @@ class SyncService():
             
             update_webhook_endpoint = endpoints.get_sync_default_webhook_endpoint()             
             self.sync_default_webhook(update_webhook_endpoint,
-                    settings.default_callback_webhook['name'], 
+                    settings.default_callback_webhook.name, 
                     settings.application_name, 
-                    settings.default_callback_webhook['url'], 
-                    settings.default_callback_webhook['api_token'])
+                    settings.default_callback_webhook.url, 
+                    settings.default_callback_webhook.api_token)
             
             sync_event_subscriptions_endpoint = endpoints.get_sync_event_subscriptions()            
             self.sync_event_subscriptions(settings.application_name,
