@@ -5,4 +5,4 @@ class PublishAdapter(Enum):
     Undefined = 0,
     Local = 1
     Direct = 2
-    Outbox = 3
+    OutboxWith2PC = 3

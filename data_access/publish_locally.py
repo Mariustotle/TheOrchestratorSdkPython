@@ -1,4 +1,5 @@
-from typing import Optional
+from pydantic import UUID4
+from typing import Optional, List
 from seedworks.logger import Logger
 from orchestrator_sdk.data_access.message_broker_publisher_interface import MessageBrokerPublisherInterface
 from orchestrator_sdk.contracts.types.process_structure import ProcessStructure
@@ -24,7 +25,7 @@ class PublishLocally(MessageBrokerPublisherInterface):
         pass
     
 
-    async def submit(self, publish_instruction:PublishEnvelope):
+    async def publish(self, publish_instruction:PublishEnvelope, transaction_reference:Optional[UUID4] = None):
         try:
             
             ## TODO: Dunamically identify the Process Structure
@@ -44,4 +45,5 @@ class PublishLocally(MessageBrokerPublisherInterface):
             logger.error(ex)            
             raise
 
-
+    async def completed(self, transaction_reference:Optional[UUID4] = None):
+        pass

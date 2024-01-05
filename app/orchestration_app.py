@@ -10,6 +10,7 @@ from orchestrator_sdk.handlers.event_handlers.event_publisher_base import EventP
 from orchestrator_sdk.data_access.message_broker_publisher_interface import MessageBrokerPublisherInterface
 from orchestrator_sdk.data_access.publish_directly import PublishDirectly
 from orchestrator_sdk.data_access.publish_locally import PublishLocally
+from orchestrator_sdk.data_access.publish_outbox_with_2pc import PublishOutboxWith2PC
 
 # @singleton
 class OrchestrationApp():
@@ -49,7 +50,7 @@ class OrchestrationApp():
         environment:str = config_reader.section('environment', str)     
         orchestrator_settings:OrchestratorConfig = config_reader.section('orchestrator', OrchestratorConfig)
         
-        raw_adapter = orchestrator_settings.publish_adapter.title()
+        raw_adapter = orchestrator_settings.publish_adapter
         configured_adapter:PublishAdapter = None
         
         if raw_adapter in PublishAdapter.__members__:
@@ -57,7 +58,7 @@ class OrchestrationApp():
         else:
             configured_adapter = PublishAdapter.Undefined
         
-        adapter_selector = PublishAdapter.Direct if configured_adapter != None and configured_adapter != PublishAdapter.Undefined else configured_adapter
+        adapter_selector = configured_adapter if configured_adapter != None and configured_adapter != PublishAdapter.Undefined else PublishAdapter.Direct
         
         if adapter_selector == PublishAdapter.Local:
             if environment != None and (environment.lower() != 'dev' or environment.lower() != 'development'):
@@ -65,6 +66,8 @@ class OrchestrationApp():
             self.publisher = PublishLocally()        
         elif adapter_selector == PublishAdapter.Direct:
             self.publisher = PublishDirectly()
+        elif adapter_selector == PublishAdapter.OutboxWith2PC:
+            self.publisher = PublishOutboxWith2PC()
         else:
             raise Exception(f"You have configured an unsupported publisher adapter type [{adapter_selector.name}] please select an valid adapter (Direct, Outbox).")
         

@@ -1,7 +1,11 @@
 
 from contextvars import ContextVar
+from uuid import UUID
+import uuid
 
-class CallbackContext:
+class CallbackContext:    
+    
+    callback_reference: ContextVar[UUID] = ContextVar("callback_reference")
     initialized: ContextVar[bool] = ContextVar("initialized")
     account_id: ContextVar[str] = ContextVar("account_id")
     group_trace_key: ContextVar[str] = ContextVar("group_trace_key")
@@ -24,7 +28,8 @@ class CallbackContext:
         self._dispatcher_token = self.dispatcher.set(dispatcher)
         self._reference_token = self.reference.set(reference)
         self._action_token = self.action.set(action)
-
+        self._callback_reference_token = self.callback_reference.set(uuid.uuid4())
+        
     def __enter__(self):
         return self
    
@@ -52,5 +57,4 @@ class CallbackContext:
         self.dispatcher.reset(self._dispatcher_token)
         self.reference.reset(self._reference_token)
         self.action.reset(self._action_token)
-
-        
+        self.callback_reference.reset(self._callback_reference_token)
