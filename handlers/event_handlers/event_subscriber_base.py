@@ -1,8 +1,8 @@
 from abc import ABC, abstractmethod
 from typing import TypeVar, Generic, Optional
-from seedworks.logger import Logger
+from orchestrator_sdk.seedworks.logger import Logger
 
-from seedworks.config_reader import ConfigReader
+from orchestrator_sdk.seedworks.config_reader import ConfigReader
 from orchestrator_sdk.contracts.orchestrator_config import OrchestratorConfig
 
 T = TypeVar('T')

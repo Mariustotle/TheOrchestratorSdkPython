@@ -1,9 +1,9 @@
-from pydantic import UUID4
-from typing import Optional, List
-from seedworks.logger import Logger
+from typing import Optional
+from orchestrator_sdk.seedworks.logger import Logger
 from requests import Response
-from orchestrator_sdk.data_access.message_broker_publisher_interface import MessageBrokerPublisherInterface
+from orchestrator_sdk.data_access.message_broker.message_broker_publisher_interface import MessageBrokerPublisherInterface
 from orchestrator_sdk.contracts.publishing.publish_envelope import PublishEnvelope
+from orchestrator_sdk.data_access.local_persistance.unit_of_work import UnitOfWork
 
 import requests
 import json
@@ -12,7 +12,7 @@ logger = Logger.get_instance()
 
 class PublishDirectly(MessageBrokerPublisherInterface):
 
-    async def publish(self, publish_instruction:PublishEnvelope, transaction_reference:Optional[UUID4] = None):
+    async def publish(self, publish_instruction:PublishEnvelope, unit_of_work:Optional[UnitOfWork] = None):
         
         try:            
             headers = {'Content-Type': 'application/json'}      
@@ -29,5 +29,5 @@ class PublishDirectly(MessageBrokerPublisherInterface):
             raise
 
 
-    async def completed(self, transaction_reference:Optional[UUID4] = None):
+    async def completed(self):
         pass
