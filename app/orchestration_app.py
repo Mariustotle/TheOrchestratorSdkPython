@@ -93,7 +93,5 @@ class OrchestrationApp():
         outbox_service = LocalOutboxService(local_database)
         asyncio.create_task(outbox_service.check_for_messages_that_are_ready())
         
-        outbox_service.check_for_messages_that_are_ready()
-        
 orchestration_app = OrchestrationApp()
 
