@@ -11,6 +11,7 @@ class MessageOutboxEntity(EntityBase):
 
     transaction_reference = Column(String, nullable=False)
     created_date = Column(DATETIME, nullable=False)
+    published_date = Column(DATETIME, nullable=True)
     publish_request_object = Column(String, nullable=True)
     status = Column(String, nullable=False)
     is_completed = Column(String, nullable=False)
@@ -19,9 +20,11 @@ class MessageOutboxEntity(EntityBase):
     group_trace_key = Column(String, nullable=True)
     process_count = Column(Integer, nullable=False)
     eligible_after = Column(DATETIME, nullable=True)
+    endpoint = Column(String, nullable=False)
     
     def Create(self, 
                publish_request_object:object,
+               endpoint:str,
                handler_name:str,
                source_message_id:str,
                group_trace_key:str):       
@@ -35,6 +38,8 @@ class MessageOutboxEntity(EntityBase):
         self.eligible_after = None
         self.created_date = datetime.utcnow()
         self.is_completed = str(False)
+        self.published_date = None
+        self.endpoint = endpoint
                 
         return self 
 

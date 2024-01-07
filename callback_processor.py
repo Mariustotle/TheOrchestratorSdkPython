@@ -1,15 +1,22 @@
-from pydantic import UUID4
-from typing import Dict, List
-
 from orchestrator_sdk.callback_context import CallbackContext
 from orchestrator_sdk.handlers.command_handlers.concurrent_command_handler_base import CommandHandlerBase
 from orchestrator_sdk.handlers.event_handlers.event_subscriber_base import EventSubscriberBase
 from orchestrator_sdk.handlers.event_handlers.event_publisher_base import EventPublisherBase
+from orchestrator_sdk.data_access.local_persistance.services.idempotence_service import IdempotenceService
 
 from orchestrator_sdk.contracts.types.action_type import ActionType
 from orchestrator_sdk.contracts.types.message_type import MessageType
+from orchestrator_sdk.data_access.local_persistance.unit_of_work import UnitOfWork
+
+from orchestrator_sdk.seedworks.logger import Logger
+
+logger = Logger.get_instance()
+
+import uuid
 
 class CallbackProcessor:
+    
+    idempotence_service: IdempotenceService = None
     
     command_handlers: dict[str, CommandHandlerBase] = {} 
     event_handlers: dict[str, EventSubscriberBase] = {}
@@ -30,6 +37,7 @@ class CallbackProcessor:
         self.command_handlers = command_handlers
         self.event_handlers = event_handlers
         self.event_publishers = event_publishers
+        self.idempotence_service = IdempotenceService()
    
     async def _process_command(self, processor_name:str, reference:str, command_name:str, action_type:ActionType, json_payload:str):        
         handler = self.command_handlers[processor_name]
@@ -44,10 +52,17 @@ class CallbackProcessor:
         return await handler.process(request=request, event_name=event_name, reference=reference)    
     
         
-    def process(self, json_payload):        
+    async def process(self, json_payload, unit_of_work:UnitOfWork):        
        
         if (not CallbackContext.is_available()):
             raise Exception(f"Unable to process callback, please verify that you have added the [@init_callback_context_for_xxx] decoration to the API method")
+        
+        message_id:uuid = uuid.UUID(CallbackContext.message_id.get()) if CallbackContext.message_id.get() is not None else None
+        if unit_of_work is not None:           
+            already_processed:bool = self.idempotence_service.has_message_been_processed(message_id=message_id, unit_of_work=unit_of_work)
+            if already_processed:
+                logger.info(f'Idempotence check: Message [{message_id}] have already been processed, skipping this request.')
+                return # Our work here is don
         
         message_name:str = CallbackContext.message_name.get()   
         intented_application_name = CallbackContext.application_name.get()
@@ -76,6 +91,8 @@ class CallbackProcessor:
                 processor_name=dispatcher, reference=reference, 
                 event_name=message_name, json_payload=json_payload
             )
-
-
-     
+            
+        if unit_of_work is not None: 
+            await unit_of_work.message_history_repository.add_message(message_id)
+            
+        

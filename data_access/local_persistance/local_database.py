@@ -5,19 +5,16 @@ from sqlalchemy.orm import sessionmaker, Session
 
 DBBase = declarative_base()
 
-class LocalDatabase():
+class LocalDatabase:
     db_engine:Engine = None
-    
-        
+       
     def db_session_maker(self) -> Session:
-        return sessionmaker(autocommit=False, autoflush=False, bind=self.db_engine)        
+        new_session = sessionmaker(autocommit=False, autoflush=False, bind=self.db_engine)
+        return new_session()
     
-    
-    def init(self):
-        
+    def init(self):        
         # Local database for orchestration persistance
-        self.db_engine = create_engine('sqlite:///orchestation_data.db', echo=True)
-        DBBase.metadata.create_all(bind=self.db_engine)        
-
+        self.db_engine = create_engine('sqlite:///message_store.db', echo=True)
+        DBBase.metadata.create_all(bind=self.db_engine)
 
 local_database = LocalDatabase()

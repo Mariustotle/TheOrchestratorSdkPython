@@ -6,3 +6,4 @@ class OutboxStatus(Enum):
     Ready = 2
     Retry = 3
     Failed = 4
+    Published = 5

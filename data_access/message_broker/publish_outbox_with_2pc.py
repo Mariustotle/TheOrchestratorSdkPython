@@ -25,12 +25,13 @@ class PublishOutboxWith2PC(MessageBrokerPublisherInterface):
             pending_message = MessageOutboxEntity().Create(
                 # TODO: Why is the pydantic class not converting properly for this specific property?
                 handler_name = self._get_value_from_pydantic_property(publish_instruction.handler_name),
+                endpoint=publish_instruction.endpoint,
                 publish_request_object=publish_instruction.publish_request,
                 source_message_id=publish_instruction.source_message_id,
                 group_trace_key=publish_instruction.group_trace_key)
 
             # Save to local SQLLite database with status Pending with the [transaction_number] above
-            unit_of_work.message_outbox_repository.add_message(pending_message)
+            await unit_of_work.message_outbox_repository.add_message(pending_message)
         
         except Exception as ex:
             

@@ -1,4 +1,3 @@
-
 from contextvars import ContextVar
 from uuid import UUID
 import uuid
@@ -18,6 +17,7 @@ class CallbackContext:
     application_name: ContextVar[str] = ContextVar("application_name")
 
     def __init__(self, account_id, application_name, message_id, group_trace_key, dispatcher, message_name, message_type, reference, action): 
+
         self._initialized_token = self.initialized.set(True)        
         self._account_id_token = self.account_id.set(account_id)
         self._application_name_token = self.application_name.set(application_name)

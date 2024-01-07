@@ -11,10 +11,8 @@ from orchestrator_sdk.data_access.message_broker.message_broker_publisher_interf
 from orchestrator_sdk.data_access.message_broker.publish_directly import PublishDirectly
 from orchestrator_sdk.data_access.message_broker.publish_locally import PublishLocally
 from orchestrator_sdk.data_access.message_broker.publish_outbox_with_2pc import PublishOutboxWith2PC
-from orchestrator_sdk.app.local_database import local_database
 
-
-
+from orchestrator_sdk.data_access.local_persistance.local_database import local_database
 
 # @singleton
 class OrchestrationApp():
@@ -23,15 +21,14 @@ class OrchestrationApp():
     application_name: str = None
     endpoints: Endpoints = None
     base_url: str = None
-    default_callback_webhook: str = None
-    
+    default_callback_webhook: str = None    
     
     command_handlers: dict[str, CommandHandlerBase] = {}
     event_handlers: dict[str, EventSubscriberBase] = {}
     event_publishers: dict[str, EventPublisherBase] = {}    
     
     processor:CallbackProcessor = None
-    publisher:MessageBrokerPublisherInterface = None
+    publisher:MessageBrokerPublisherInterface = None  
     
     async def process_request(self, jsonPayload):     
         return await self.processor.process(jsonPayload)
@@ -45,7 +42,8 @@ class OrchestrationApp():
     def add_event_publisher(self, publisher:EventPublisherBase):
         self.event_publishers[publisher.processor_name] = publisher
     
-    def __init__(self) -> bool:      
+    def __init__(self) -> bool:       
+        
         self.processor = CallbackProcessor(command_handlers=self.command_handlers, 
                                            event_handlers=self.event_handlers, 
                                            event_publishers=self.event_publishers)

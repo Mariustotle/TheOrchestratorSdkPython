@@ -1,5 +1,5 @@
 from sqlalchemy import Column, String
-from orchestrator_sdk.app.local_database import DBBase
+from orchestrator_sdk.data_access.local_persistance.local_database import DBBase
 import uuid
 
 class EntityBase(DBBase):
