@@ -39,17 +39,17 @@ class CallbackProcessor:
         self.event_publishers = event_publishers
         self.idempotence_service = IdempotenceService()
    
-    async def _process_command(self, processor_name:str, reference:str, command_name:str, action_type:ActionType, json_payload:str):        
+    async def _process_command(self, processor_name:str, reference:str, command_name:str, action_type:ActionType, json_payload:str, unit_of_work:UnitOfWork):        
         handler = self.command_handlers[processor_name]
         
         if (action_type == ActionType.Process):
             request =  self.from_json(json_payload, handler.request_type)
-            return await handler.process(request=request, command_name=command_name, reference=reference)            
+            return await handler.process(request=request, command_name=command_name, reference=reference, unit_of_work=unit_of_work)            
     
-    async def _process_event(self, processor_name:str, reference:str, event_name:str, json_payload:str):        
+    async def _process_event(self, processor_name:str, reference:str, event_name:str, json_payload:str, unit_of_work:UnitOfWork):        
         handler = self.event_handlers[processor_name]        
         request =  self.from_json(json_payload, handler.request_type)
-        return await handler.process(request=request, event_name=event_name, reference=reference)    
+        return await handler.process(request=request, event_name=event_name, reference=reference, unit_of_work=unit_of_work)    
     
         
     async def process(self, json_payload, unit_of_work:UnitOfWork):        
@@ -85,13 +85,15 @@ class CallbackProcessor:
         if (message_type == MessageType.Command):            
             response_object = await self._process_command(
                 processor_name=dispatcher, reference=reference, 
-                command_name=message_name, action_type=action, json_payload=json_payload
+                command_name=message_name, action_type=action, json_payload=json_payload,
+                unit_of_work=unit_of_work
             )
         
         elif (message_type == MessageType.Event):
             response_object = await self._process_event(
                 processor_name=dispatcher, reference=reference, 
-                event_name=message_name, json_payload=json_payload
+                event_name=message_name, json_payload=json_payload,
+                unit_of_work=unit_of_work
             )
             
         if unit_of_work is not None: 

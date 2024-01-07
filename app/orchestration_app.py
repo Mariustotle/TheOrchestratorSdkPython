@@ -12,8 +12,11 @@ from orchestrator_sdk.data_access.message_broker.publish_directly import Publish
 from orchestrator_sdk.data_access.message_broker.publish_locally import PublishLocally
 from orchestrator_sdk.data_access.message_broker.publish_outbox_with_2pc import PublishOutboxWith2PC
 from orchestrator_sdk.data_access.local_persistance.unit_of_work import UnitOfWork
+from orchestrator_sdk.data_access.local_persistance.services.local_outbox_service import LocalOutboxService
 
 from orchestrator_sdk.data_access.local_persistance.local_database import local_database
+
+import asyncio
 
 # @singleton
 class OrchestrationApp():
@@ -86,6 +89,11 @@ class OrchestrationApp():
         
         sync_service = SyncService() 
         self.syncronized_with_orchestrator = sync_service.init(orchestrator_settings, self.endpoints, subscriptions, publishers)
+        
+        outbox_service = LocalOutboxService(local_database)
+        asyncio.create_task(outbox_service.check_for_messages_that_are_ready())
+        
+        outbox_service.check_for_messages_that_are_ready()
         
 orchestration_app = OrchestrationApp()
 
