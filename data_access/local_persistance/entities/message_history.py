@@ -1,5 +1,4 @@
-from sqlalchemy import Column, String, DATETIME, Boolean, Integer
-from orchestrator_sdk.data_access.local_persistance.outbox_status import OutboxStatus
+from sqlalchemy import Column, String, DATETIME
 from orchestrator_sdk.data_access.local_persistance.entity_base import EntityBase
 
 from datetime import datetime

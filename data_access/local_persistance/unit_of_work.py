@@ -53,4 +53,4 @@ class UnitOfWork:
 
     @property
     def message_history_repository(self):
-        return MessageHistoryRepository(self.session)
+        return MessageHistoryRepository()

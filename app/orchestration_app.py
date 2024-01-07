@@ -11,6 +11,7 @@ from orchestrator_sdk.data_access.message_broker.message_broker_publisher_interf
 from orchestrator_sdk.data_access.message_broker.publish_directly import PublishDirectly
 from orchestrator_sdk.data_access.message_broker.publish_locally import PublishLocally
 from orchestrator_sdk.data_access.message_broker.publish_outbox_with_2pc import PublishOutboxWith2PC
+from orchestrator_sdk.data_access.local_persistance.unit_of_work import UnitOfWork
 
 from orchestrator_sdk.data_access.local_persistance.local_database import local_database
 
@@ -30,8 +31,8 @@ class OrchestrationApp():
     processor:CallbackProcessor = None
     publisher:MessageBrokerPublisherInterface = None  
     
-    async def process_request(self, jsonPayload):     
-        return await self.processor.process(jsonPayload)
+    async def process_request(self, jsonPayload, unit_of_work:UnitOfWork):     
+        return await self.processor.process(jsonPayload, unit_of_work)
 
     def add_command_handler(self, handler:CommandHandlerBase):
         self.command_handlers[handler.processor_name] = handler

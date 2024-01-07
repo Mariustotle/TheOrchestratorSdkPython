@@ -59,10 +59,10 @@ class CallbackProcessor:
         
         message_id:uuid = uuid.UUID(CallbackContext.message_id.get()) if CallbackContext.message_id.get() is not None else None
         if unit_of_work is not None:           
-            already_processed:bool = self.idempotence_service.has_message_been_processed(message_id=message_id, unit_of_work=unit_of_work)
+            already_processed:bool = await self.idempotence_service.has_message_been_processed(message_id=message_id, session=unit_of_work.session, local_database=unit_of_work.local_database)
             if already_processed:
                 logger.info(f'Idempotence check: Message [{message_id}] have already been processed, skipping this request.')
-                return # Our work here is don
+                return # Our work here is done
         
         message_name:str = CallbackContext.message_name.get()   
         intented_application_name = CallbackContext.application_name.get()
@@ -78,21 +78,24 @@ class CallbackProcessor:
         message_type_string = CallbackContext.message_type.get()
         message_type:str = MessageType[message_type_string]        
              
-        reference:str = CallbackContext.reference.get()      
+        reference:str = CallbackContext.reference.get()
+        
+        response_object = None
         
         if (message_type == MessageType.Command):            
-            return self._process_command(
+            response_object = await self._process_command(
                 processor_name=dispatcher, reference=reference, 
                 command_name=message_name, action_type=action, json_payload=json_payload
             )
         
         elif (message_type == MessageType.Event):
-            return self._process_event(
+            response_object = await self._process_event(
                 processor_name=dispatcher, reference=reference, 
                 event_name=message_name, json_payload=json_payload
             )
             
         if unit_of_work is not None: 
-            await unit_of_work.message_history_repository.add_message(message_id)
+            await unit_of_work.message_history_repository.add_message(message_id, unit_of_work.session)
+            unit_of_work.session.commit()
             
-        
+        return response_object

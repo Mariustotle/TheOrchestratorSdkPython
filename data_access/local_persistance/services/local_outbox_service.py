@@ -7,7 +7,7 @@ from orchestrator_sdk.data_access.local_persistance.repositories.message_outbox_
 from orchestrator_sdk.data_access.local_persistance.repositories.message_outbox_repository import ReadyForSubmissionBatch
 from orchestrator_sdk.data_access.local_persistance.local_database import LocalDatabase
 from orchestrator_sdk.contracts.publishing.publish_envelope import PublishEnvelope
-# from orchestrator_sdk.data_access.message_broker.publish_directly import PublishDirectly
+from orchestrator_sdk.data_access.message_broker.methods.api_submission import ApiSubmission
 from orchestrator_sdk.data_access.local_persistance.outbox_status import OutboxStatus
 
 class LocalOutboxService:
@@ -45,7 +45,7 @@ class LocalOutboxService:
         
         remaining:int = None
         ready:int = None
-        # publish_directly = PublishDirectly()
+        api_submission = ApiSubmission()
         
         try:           
            outbox_repo = MessageOutboxRepository(self.session, None)           
@@ -66,7 +66,7 @@ class LocalOutboxService:
                     group_trace_key=message.group_trace_key)
                
                try:                   
-                   await publish_directly.publish(envelope)
+                   await api_submission.submit(envelope)
                    
                    message.status = OutboxStatus.Published.name
                    message.is_completed = True
@@ -100,8 +100,8 @@ class LocalOutboxService:
     async def cleanup(self):  
         # Removed in its own context, non-blocking to original query
        
-        repo = MessageOutboxRepository(self.session)
-        repo.delete_old_message_history(self.RETENTION_TIME_IN_DAYS)
+        repo = MessageOutboxRepository(self.session, None)
+        await repo.delete_old_message_history(self.RETENTION_TIME_IN_DAYS)
         
         self.session.commit()
         self.session.close()  
