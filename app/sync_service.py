@@ -1,4 +1,4 @@
-from seedworks.logger import Logger
+from orchestrator_sdk.seedworks.logger import Logger
 from orchestrator_sdk.contracts.orchestrator_config import OrchestratorConfig
 from orchestrator_sdk.contracts.requests.application.sync_webhooks_request import SyncWebhooksRequest
 from orchestrator_sdk.contracts.requests.webhooks.webhook_request import WebhookRequest

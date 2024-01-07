@@ -1,8 +1,8 @@
 from abc import ABC, abstractmethod
 from typing import TypeVar, Generic, Optional, List, Type
-from seedworks.config_reader import ConfigReader
+from orchestrator_sdk.seedworks.config_reader import ConfigReader
 from orchestrator_sdk.contracts.orchestrator_config import OrchestratorConfig
-from seedworks.logger import Logger
+from orchestrator_sdk.seedworks.logger import Logger
 from orchestrator_sdk.contracts.requests.events.publish_event_request import PublishEventRequest
 from orchestrator_sdk.callback_context import CallbackContext
 from orchestrator_sdk.contracts.publishing.publish_envelope import PublishEnvelope
@@ -53,7 +53,7 @@ class EventPublisherBase(ABC, Generic[T]):
         envelope = PublishEnvelope().Create(
             publish_request=publish_request,
             endpoint=self.publish_url,
-            handler=self.processor_name,
+            handler_name=self.processor_name,
             reference=reference,
             source_message_id=source_message_id,
             group_trace_key=group_trace_key

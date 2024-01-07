@@ -42,7 +42,7 @@ class QueueCommandHandlerBase(CommandHandlerBase[T, Y]):
         envelope = PublishEnvelope().Create(
             publish_request=publish_request,
             endpoint=self.publish_url,
-            handler=self.processor_name,
+            handler_name=self.processor_name,
             reference=reference,
             source_message_id=source_message_id,
             group_trace_key=group_trace_key

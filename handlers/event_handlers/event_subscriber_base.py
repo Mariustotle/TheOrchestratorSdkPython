@@ -1,9 +1,10 @@
 from abc import ABC, abstractmethod
 from typing import TypeVar, Generic, Optional
-from seedworks.logger import Logger
+from orchestrator_sdk.seedworks.logger import Logger
 
-from seedworks.config_reader import ConfigReader
+from orchestrator_sdk.seedworks.config_reader import ConfigReader
 from orchestrator_sdk.contracts.orchestrator_config import OrchestratorConfig
+from orchestrator_sdk.data_access.local_persistance.unit_of_work import UnitOfWork
 
 T = TypeVar('T')
 
@@ -34,12 +35,12 @@ class EventSubscriberBase(ABC, Generic[T]):
         self.processor_name = processor_name        
         
     @abstractmethod
-    async def _process(self, request: T, name:str, reference:Optional[str]) -> None:
+    async def _process(self, request: T, name:str, reference:Optional[str], unit_of_work:Optional[UnitOfWork] = None) -> None:
         pass    
             
-    async def process(self, request: T, event_name:str, reference:Optional[str]) -> None:
+    async def process(self, request: T, event_name:str, reference:Optional[str], unit_of_work:Optional[UnitOfWork] = None) -> None:
         if self.event_name.lower() != event_name.lower():
             raise ValueError(f'Trying to process message [{event_name}] in handler [{self.processor_name}] but it is not a supported.')
-        return await self._process(request, event_name, reference)
+        return await self._process(request, event_name, reference, unit_of_work)
     
 
