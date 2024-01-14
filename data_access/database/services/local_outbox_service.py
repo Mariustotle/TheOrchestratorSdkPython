@@ -9,6 +9,9 @@ from orchestrator_sdk.contracts.publishing.publish_envelope import PublishEnvelo
 from orchestrator_sdk.data_access.message_broker.methods.api_submission import ApiSubmission
 from orchestrator_sdk.data_access.database.outbox_status import OutboxStatus
 
+from orchestrator_sdk.seedworks.logger import Logger
+logger = Logger.get_instance()
+
 class LocalOutboxService:
     
     is_busy:bool = None
@@ -49,6 +52,9 @@ class LocalOutboxService:
         try:           
            outbox_repo = MessageOutboxRepository(self.session, None)           
            batch_result:ReadyForSubmissionBatch = await outbox_repo.get_next_messages(batch_size=self.BATCH_SIZE)
+           
+           if (batch_result.messages_not_completed > 0):
+                logger.info(f'Batch Processing Summary >>>> Remaining [{len(batch_result.messages)}/{batch_result.messages_not_completed}] Ready [{batch_result.messages_ready}] Intervention [{batch_result.messages_needing_intervention}] <<<<')
            
            self.remaining_count = batch_result.messages_not_completed
            remaining = self.remaining_count

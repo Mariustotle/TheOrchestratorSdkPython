@@ -13,14 +13,17 @@ from datetime import datetime, timedelta
 class ReadyForSubmissionBatch:
     messages_ready:int = None
     messages_not_completed:int = None
+    messages_needing_intervention:int = None
     messages:List[MessageOutboxEntity] = None
     
     def Create(self, 
         messages_ready:int,
         messages_not_completed:int,
+        message_needing_intervention:int,
         messages:[MessageOutboxEntity] = None):
         
         self.messages_ready = messages_ready
+        self.messages_needing_intervention = message_needing_intervention
         self.messages_not_completed = messages_not_completed
         self.messages = messages if messages is not None else []        
         
@@ -95,8 +98,11 @@ class MessageOutboxRepository(RepositoryBase):
 
     async def get_next_messages(self, batch_size: int) -> ReadyForSubmissionBatch:
         
+        time_threshold = datetime.utcnow() - timedelta(hours=1)
+        
         ready_count = self.session.query(MessageOutboxEntity).filter(MessageOutboxEntity.status == OutboxStatus.Ready.name).count()
         not_completed_count = self.session.query(MessageOutboxEntity).filter(MessageOutboxEntity.is_completed == False).count()
+        need_intervention_count = self.session.query(MessageOutboxEntity).filter(MessageOutboxEntity.status == OutboxStatus.Preperation.name).count() # MessageOutboxEntity.created_date < time_threshold and 
         
         next_messages = self.session.query(MessageOutboxEntity)\
             .filter(MessageOutboxEntity.status == OutboxStatus.Ready.name)\
@@ -104,10 +110,10 @@ class MessageOutboxRepository(RepositoryBase):
             .limit(batch_size)\
             .all()
         
-        bacth_result = ReadyForSubmissionBatch().Create(messages_ready=ready_count, messages_not_completed=not_completed_count, messages=next_messages)
+        bacth_result = ReadyForSubmissionBatch().Create(messages_ready=ready_count, messages_not_completed=not_completed_count, messages=next_messages, message_needing_intervention=need_intervention_count)
         
         return bacth_result
     
     async def delete_old_message_history(self, retention_in_days:int):        
         threshold_date = datetime.utcnow() - timedelta(days=retention_in_days)
-        self.session.query(MessageOutboxEntity).filter(MessageOutboxEntity.published_date < threshold_date or MessageOutboxEntity.status == OutboxStatus.Rollback.name).delete()
+        self.session.query(MessageOutboxEntity).filter(MessageOutboxEntity.published_date < threshold_date).delete() # Can delete rollback faster
