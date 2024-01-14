@@ -3,8 +3,8 @@ from orchestrator_sdk.seedworks.logger import Logger
 from orchestrator_sdk.data_access.message_broker.message_broker_publisher_interface import MessageBrokerPublisherInterface
 from orchestrator_sdk.contracts.publishing.publish_envelope import PublishEnvelope
 from orchestrator_sdk.callback_context import CallbackContext
-from orchestrator_sdk.data_access.local_persistance.unit_of_work import UnitOfWork
-from orchestrator_sdk.data_access.local_persistance.entities.message_outbox_entity import MessageOutboxEntity
+from orchestrator_sdk.data_access.database.unit_of_work import UnitOfWork
+from orchestrator_sdk.data_access.database.entities.message_outbox_entity import MessageOutboxEntity
 
 logger = Logger.get_instance()
 

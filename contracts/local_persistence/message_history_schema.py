@@ -1,4 +1,4 @@
-from orchestrator_sdk.data_access.local_persistance.outbox_status import OutboxStatus
+from orchestrator_sdk.data_access.database.outbox_status import OutboxStatus
 from pydantic import BaseModel
 from datetime import datetime
 from uuid import uuid4

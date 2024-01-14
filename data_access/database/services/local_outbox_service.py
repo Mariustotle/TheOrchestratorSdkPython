@@ -3,12 +3,11 @@ import asyncio
 from sqlalchemy.orm import Session
 from typing import Optional
 
-from orchestrator_sdk.data_access.local_persistance.repositories.message_outbox_repository import MessageOutboxRepository
-from orchestrator_sdk.data_access.local_persistance.repositories.message_outbox_repository import ReadyForSubmissionBatch
-from orchestrator_sdk.data_access.local_persistance.message_database import MessageDatabase
+from orchestrator_sdk.data_access.database.repositories.message_outbox_repository import MessageOutboxRepository, ReadyForSubmissionBatch
+from orchestrator_sdk.data_access.database.message_database import MessageDatabase
 from orchestrator_sdk.contracts.publishing.publish_envelope import PublishEnvelope
 from orchestrator_sdk.data_access.message_broker.methods.api_submission import ApiSubmission
-from orchestrator_sdk.data_access.local_persistance.outbox_status import OutboxStatus
+from orchestrator_sdk.data_access.database.outbox_status import OutboxStatus
 
 class LocalOutboxService:
     

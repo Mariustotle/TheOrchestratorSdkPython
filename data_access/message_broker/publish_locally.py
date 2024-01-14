@@ -6,7 +6,7 @@ from orchestrator_sdk.contracts.requests.commands.concurrent_command_request imp
 from orchestrator_sdk.contracts.requests.commands.queue_command_request import QueueCommandRequest
 from orchestrator_sdk.contracts.requests.events.publish_event_request import PublishEventRequest
 from orchestrator_sdk.contracts.publishing.publish_envelope import PublishEnvelope
-from orchestrator_sdk.data_access.local_persistance.unit_of_work import UnitOfWork
+from orchestrator_sdk.data_access.database.unit_of_work import UnitOfWork
 
 import requests
 import json

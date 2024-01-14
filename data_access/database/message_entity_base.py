@@ -1,5 +1,5 @@
 from sqlalchemy import Column, String
-from orchestrator_sdk.data_access.local_persistance.message_database import DBBase
+from orchestrator_sdk.data_access.database.message_database import DBBase
 import uuid
 
 class MessageEntityBase(DBBase):

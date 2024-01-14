@@ -1,5 +1,5 @@
 from sqlalchemy import Column, String, DATETIME
-from orchestrator_sdk.data_access.local_persistance.message_entity_base import MessageEntityBase
+from orchestrator_sdk.data_access.database.message_entity_base import MessageEntityBase
 
 from datetime import datetime
 from uuid import uuid4

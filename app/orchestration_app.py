@@ -11,12 +11,12 @@ from orchestrator_sdk.data_access.message_broker.message_broker_publisher_interf
 from orchestrator_sdk.data_access.message_broker.publish_directly import PublishDirectly
 from orchestrator_sdk.data_access.message_broker.publish_locally import PublishLocally
 from orchestrator_sdk.data_access.message_broker.publish_outbox_with_2pc import PublishOutboxWith2PC
-from orchestrator_sdk.data_access.local_persistance.unit_of_work import UnitOfWork
-from orchestrator_sdk.data_access.local_persistance.services.local_outbox_service import LocalOutboxService
+from orchestrator_sdk.data_access.database.unit_of_work import UnitOfWork
+from orchestrator_sdk.data_access.database.services.local_outbox_service import LocalOutboxService
 from typing import Optional
 
-from orchestrator_sdk.data_access.local_persistance.database_context import DatabaseContext
-from orchestrator_sdk.data_access.local_persistance.message_database import message_database
+from orchestrator_sdk.data_access.database.database_context import DatabaseContext
+from orchestrator_sdk.data_access.database.message_database import message_database
 
 import asyncio
 
