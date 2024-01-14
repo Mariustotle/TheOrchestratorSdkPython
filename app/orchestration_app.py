@@ -11,10 +11,12 @@ from orchestrator_sdk.data_access.message_broker.message_broker_publisher_interf
 from orchestrator_sdk.data_access.message_broker.publish_directly import PublishDirectly
 from orchestrator_sdk.data_access.message_broker.publish_locally import PublishLocally
 from orchestrator_sdk.data_access.message_broker.publish_outbox_with_2pc import PublishOutboxWith2PC
-from orchestrator_sdk.data_access.local_persistance.unit_of_work import UnitOfWork
-from orchestrator_sdk.data_access.local_persistance.services.local_outbox_service import LocalOutboxService
+from orchestrator_sdk.data_access.database.unit_of_work import UnitOfWork
+from orchestrator_sdk.data_access.database.services.local_outbox_service import LocalOutboxService
+from typing import Optional
 
-from orchestrator_sdk.data_access.local_persistance.local_database import local_database
+from orchestrator_sdk.data_access.database.database_context import DatabaseContext
+from orchestrator_sdk.data_access.database.message_database import message_database
 
 import asyncio
 
@@ -52,7 +54,7 @@ class OrchestrationApp():
                                            event_handlers=self.event_handlers, 
                                            event_publishers=self.event_publishers)
         
-    def start(self):        
+    def start(self, application_database:Optional[DatabaseContext] = None):        
         config_reader = ConfigReader()
         environment:str = config_reader.section('environment', str)     
         orchestrator_settings:OrchestratorConfig = config_reader.section('orchestrator', OrchestratorConfig)
@@ -78,7 +80,10 @@ class OrchestrationApp():
         else:
             raise Exception(f"You have configured an unsupported publisher adapter type [{adapter_selector.name}] please select an valid adapter (Direct, Outbox).")
         
-        local_database.init()
+        message_database.init()
+        
+        if (application_database != None):
+            application_database.init()
       
         self.application_name = orchestrator_settings.application_name
         self.processor.application_name = self.application_name        
@@ -90,7 +95,7 @@ class OrchestrationApp():
         sync_service = SyncService() 
         self.syncronized_with_orchestrator = sync_service.init(orchestrator_settings, self.endpoints, subscriptions, publishers)
         
-        outbox_service = LocalOutboxService(local_database)
+        outbox_service = LocalOutboxService(message_database)
         asyncio.create_task(outbox_service.check_for_messages_that_are_ready())
         
 orchestration_app = OrchestrationApp()

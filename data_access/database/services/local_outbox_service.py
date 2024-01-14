@@ -3,18 +3,20 @@ import asyncio
 from sqlalchemy.orm import Session
 from typing import Optional
 
-from orchestrator_sdk.data_access.local_persistance.repositories.message_outbox_repository import MessageOutboxRepository
-from orchestrator_sdk.data_access.local_persistance.repositories.message_outbox_repository import ReadyForSubmissionBatch
-from orchestrator_sdk.data_access.local_persistance.local_database import LocalDatabase
+from orchestrator_sdk.data_access.database.repositories.message_outbox_repository import MessageOutboxRepository, ReadyForSubmissionBatch
+from orchestrator_sdk.data_access.database.message_database import MessageDatabase
 from orchestrator_sdk.contracts.publishing.publish_envelope import PublishEnvelope
 from orchestrator_sdk.data_access.message_broker.methods.api_submission import ApiSubmission
-from orchestrator_sdk.data_access.local_persistance.outbox_status import OutboxStatus
+from orchestrator_sdk.data_access.database.outbox_status import OutboxStatus
+
+from orchestrator_sdk.seedworks.logger import Logger
+logger = Logger.get_instance()
 
 class LocalOutboxService:
     
     is_busy:bool = None
     session:Session = None
-    local_database:LocalDatabase = None
+    message_database:MessageDatabase = None
     lock:object = None
     
     remaining_count:Optional[int] = None
@@ -23,10 +25,10 @@ class LocalOutboxService:
     BATCH_SIZE:int = 20
     RETENTION_TIME_IN_DAYS:int = 30
     
-    def __init__(self, local_database:LocalDatabase): 
+    def __init__(self, message_database:MessageDatabase): 
         self.is_busy = False
         self.lock = Lock()
-        self.local_database = local_database
+        self.message_database = message_database
         
     async def check_for_messages_that_are_ready(self):
         
@@ -36,7 +38,7 @@ class LocalOutboxService:
             self.is_busy = True
         
         self.remaining_count = None
-        self.session = self.local_database.db_session_maker()
+        self.session = self.message_database.db_session_maker()
         await asyncio.create_task(self.process_next_batch())
     
     async def process_next_batch(self):
@@ -50,6 +52,9 @@ class LocalOutboxService:
         try:           
            outbox_repo = MessageOutboxRepository(self.session, None)           
            batch_result:ReadyForSubmissionBatch = await outbox_repo.get_next_messages(batch_size=self.BATCH_SIZE)
+           
+           if (batch_result.messages_not_completed > 0):
+                logger.info(f'Batch Processing Summary >>>> Remaining [{len(batch_result.messages)}/{batch_result.messages_not_completed}] Ready [{batch_result.messages_ready}] Intervention [{batch_result.messages_needing_intervention}] <<<<')
            
            self.remaining_count = batch_result.messages_not_completed
            remaining = self.remaining_count
