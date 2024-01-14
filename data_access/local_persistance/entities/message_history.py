@@ -1,11 +1,11 @@
 from sqlalchemy import Column, String, DATETIME
-from orchestrator_sdk.data_access.local_persistance.entity_base import EntityBase
+from orchestrator_sdk.data_access.local_persistance.message_entity_base import MessageEntityBase
 
 from datetime import datetime
 from uuid import uuid4
 import json
 
-class MessageHistory(EntityBase):
+class MessageHistory(MessageEntityBase):
     __tablename__ = 'MessageHistory'
 
     message_id = Column(String, nullable=False)

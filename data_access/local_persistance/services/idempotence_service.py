@@ -1,7 +1,7 @@
 from sqlalchemy.orm import Session
 from datetime import datetime, timedelta
 from orchestrator_sdk.data_access.local_persistance.repositories.message_history_repository import MessageHistoryRepository
-from orchestrator_sdk.data_access.local_persistance.local_database import LocalDatabase
+from orchestrator_sdk.data_access.local_persistance.message_database import MessageDatabase
 from uuid import uuid4
 
 import asyncio
@@ -16,7 +16,7 @@ class IdempotenceService:
     def __init__(self) -> None:
         self.message_history_repo = MessageHistoryRepository()
 
-    async def has_message_been_processed(self, message_id:uuid4, session:Session, local_database:LocalDatabase) -> bool:
+    async def has_message_been_processed(self, message_id:uuid4, session:Session, message_database:MessageDatabase) -> bool:
         now = datetime.utcnow()
         do_cleanup:bool = True if self.last_timestamp is None or now - self.last_timestamp > timedelta(hours=1) else False
         
@@ -24,12 +24,12 @@ class IdempotenceService:
         
         
         if do_cleanup:
-            asyncio.create_task(self.cleanup(local_database))
+            asyncio.create_task(self.cleanup(message_database))
             
         return has_been_processed
             
-    async def cleanup(self, local_database:LocalDatabase):        
-        session = local_database.db_session_maker()
+    async def cleanup(self, message_database:MessageDatabase):        
+        session = message_database.db_session_maker()
         self.last_timestamp = datetime.utcnow()
         
         history_repo = MessageHistoryRepository()

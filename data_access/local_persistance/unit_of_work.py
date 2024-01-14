@@ -2,7 +2,8 @@ from orchestrator_sdk.data_access.local_persistance.repositories.message_outbox_
 from orchestrator_sdk.data_access.local_persistance.repositories.message_history_repository import MessageHistoryRepository
 from orchestrator_sdk.data_access.local_persistance.services.local_outbox_service import LocalOutboxService
 
-from orchestrator_sdk.data_access.local_persistance.local_database import LocalDatabase
+from orchestrator_sdk.data_access.local_persistance.database_context import DatabaseContext
+from typing import Optional
 from sqlalchemy.orm import Session
 
 from uuid import uuid4
@@ -12,44 +13,78 @@ import asyncio
 
 class UnitOfWork:    
     transaction_reference:uuid4 = None
-    session:Session = None
-    local_database:LocalDatabase = None
+    has_application_session:bool = False
+    has_changes:bool = False
+    
+    message_database:DatabaseContext = None
+    message_session:Session = None
+    
+    application_database:Optional[DatabaseContext] = None
+    application_session:Optional[Session] = None
    
     # TODO: Create repository base class, making adding of repositories into a list not fixed set
-    # TODO: Create two sessions, local_database and main_database but commit on the same time
-    def __init__(self, local_database:LocalDatabase):
+    def __init__(self, message_database:DatabaseContext, application_database:DatabaseContext = None):
         
-        self.local_database = local_database
+        self.message_database = message_database
+        
+        if (application_database != None):
+            self.has_application_session = True        
+            self.application_database = application_database
+            
         self.transaction_reference = uuid.uuid4()
-        self.has_changes:bool = False        
-        self.local_outbox_service = LocalOutboxService(local_database)
+        self.local_outbox_service = LocalOutboxService(message_database)
+
 
     def __enter__(self):
-        self.session = self.local_database.db_session_maker()
+        self.message_session = self.message_database.db_session_maker()
+        
+        if (self.application_database != None) :
+            self.application_session = self.application_database.db_session_maker()
+        
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        check_local_messages:bool = False
         
         if exc_type:
-            self.session.rollback()
-        else:            
-            self.session.commit()
-            if self._manual_commit():
-                check_local_messages = True
-            self.session.commit()        
+            self.message_session.rollback()
+            
+            if (self.has_application_session):
+                self.application_session.rollback()
+                
+        else:
+            self.message_session.commit()
+            self._preparing_outbox_messages()
+            
+            if (self.has_application_session):
+                self.application_session.commit()            
+            
+            self._committing_outbox_messages()
+            
+            if (self.has_changes):
+                self._run_post_commit_processes()
 
-        self.session.close()
+        self.message_session.close()        
+    
+    def _preparing_outbox_messages(self):
+        self.has_changes = self.message_outbox_repository.prepare_outbox_message_for_transaction()
         
-        if check_local_messages:
-            asyncio.create_task(self.local_outbox_service.check_for_messages_that_are_ready())
+        if (self.has_changes):
+            self.message_session.commit()
+    
+    def _committing_outbox_messages(self):
+        self.has_changes = self.message_outbox_repository.complete_outbox_message_in_transaction()
         
-    def _manual_commit(self) -> bool:
-        return self.message_outbox_repository.commit()
+        if (self.has_changes):
+            self.message_session.commit()
+    
+    def _run_post_commit_processes(self):
+        if (self.has_changes):
+            asyncio.create_task(self.local_outbox_service.check_for_messages_that_are_ready())  
+    
 
     @property
     def message_outbox_repository(self):
-        return MessageOutboxRepository(self.session, self.transaction_reference)
+        return MessageOutboxRepository(self.message_session, self.transaction_reference)
 
     @property
     def message_history_repository(self):

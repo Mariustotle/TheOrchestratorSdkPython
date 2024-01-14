@@ -1,12 +1,12 @@
 from sqlalchemy import Column, String, DATETIME, Boolean, Integer
 from orchestrator_sdk.data_access.local_persistance.outbox_status import OutboxStatus
-from orchestrator_sdk.data_access.local_persistance.entity_base import EntityBase
+from orchestrator_sdk.data_access.local_persistance.message_entity_base import MessageEntityBase
 
 from datetime import datetime
 from uuid import uuid4
 import json
 
-class MessageOutboxEntity(EntityBase):
+class MessageOutboxEntity(MessageEntityBase):
     __tablename__ = 'MessagesOutbox'
 
     transaction_reference = Column(String, nullable=False)

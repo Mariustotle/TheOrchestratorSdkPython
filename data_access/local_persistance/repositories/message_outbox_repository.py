@@ -43,11 +43,23 @@ class MessageOutboxRepository:
         if db_entity:
             converted = MessageOutboxSchema.model_validate(db_entity)
         
-        return converted    
+        return converted
     
-    def commit(self):
+    def prepare_outbox_message_for_transaction(self):
         # Find all pending messages for the given transaction_id
         pending_messages = self.session.query(MessageOutboxEntity).filter_by(transaction_reference=str(self.transaction_reference), status=OutboxStatus.Pending.name).all()
+        added_messages:bool = False
+        
+        # Update the status of each message to 'Preperation'
+        for message in pending_messages:
+            message.status = OutboxStatus.Preperation.name
+            added_messages = True
+            
+        return added_messages
+    
+    def complete_outbox_message_in_transaction(self):
+        # Find all pending messages for the given transaction_id
+        pending_messages = self.session.query(MessageOutboxEntity).filter_by(transaction_reference=str(self.transaction_reference), status=OutboxStatus.Preperation.name).all()
         added_messages:bool = False
         
         # Update the status of each message to 'Ready'

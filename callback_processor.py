@@ -59,7 +59,7 @@ class CallbackProcessor:
         
         message_id:uuid = uuid.UUID(CallbackContext.message_id.get()) if CallbackContext.message_id.get() is not None else None
         if unit_of_work is not None:           
-            already_processed:bool = await self.idempotence_service.has_message_been_processed(message_id=message_id, session=unit_of_work.session, local_database=unit_of_work.local_database)
+            already_processed:bool = await self.idempotence_service.has_message_been_processed(message_id=message_id, session=unit_of_work.message_session, message_database=unit_of_work.message_database)
             if already_processed:
                 logger.info(f'Idempotence check: Message [{message_id}] have already been processed, skipping this request.')
                 return # Our work here is done
@@ -97,7 +97,7 @@ class CallbackProcessor:
             )
             
         if unit_of_work is not None: 
-            await unit_of_work.message_history_repository.add_message(message_id, unit_of_work.session)
-            unit_of_work.session.commit()
+            await unit_of_work.message_history_repository.add_message(message_id, unit_of_work.message_session)
+            unit_of_work.message_session.commit()
             
         return response_object
