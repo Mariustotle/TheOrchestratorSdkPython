@@ -8,6 +8,8 @@ from orchestrator_sdk.data_access.database.message_database import MessageDataba
 from orchestrator_sdk.contracts.publishing.publish_envelope import PublishEnvelope
 from orchestrator_sdk.data_access.message_broker.methods.api_submission import ApiSubmission
 from orchestrator_sdk.data_access.database.outbox_status import OutboxStatus
+from requests.exceptions import ConnectionError as RequestsConnectionError
+
 
 from orchestrator_sdk.seedworks.logger import Logger
 logger = Logger.get_instance()
@@ -48,6 +50,7 @@ class LocalOutboxService:
         remaining:int = None
         ready:int = None
         api_submission = ApiSubmission()
+        error_occurred = False
         
         try:           
            outbox_repo = MessageOutboxRepository(self.session, None)           
@@ -63,25 +66,33 @@ class LocalOutboxService:
            for message in batch_result.messages:
                publish_request = message.publish_request_object
                
-               envelope = PublishEnvelope().Create(
-                    endpoint=message.endpoint,
-                    publish_request=publish_request,
-                    handler_name=message.handler_name,
-                    source_message_id=message.source_message_id,
-                    group_trace_key=message.group_trace_key)
-               
-               try:                   
-                   await api_submission.submit(envelope)
+               try:           
                    
-                   message.status = OutboxStatus.Published.name
-                   message.is_completed = True
-                   self.session.commit()                         
+                    envelope = PublishEnvelope().Create(
+                            endpoint=message.endpoint,
+                            publish_request=publish_request,
+                            handler_name=message.handler_name,
+                            source_message_id=message.source_message_id,
+                            group_trace_key=message.group_trace_key)
+                           
+                    await api_submission.submit(envelope)
                    
-               except Exception as ex:            
-                    print(f"Oops! {ex.__class__} occurred. Details: {ex}")  
+                    message.status = OutboxStatus.Published.name
+                    message.is_completed = True
+                    self.session.commit()
+            
+               except RequestsConnectionError:
+                    error_occurred = True
+                    logger.warn(f'Unable to connect to orchestrator server to publish the [{len(batch_result.messages)}] messages waiting to be sent. Will delay retry.')
+                    break
+                   
+               except Exception as ex:
+                    error_occurred = True        
+                    logger.error(f"Oops! {ex.__class__} occurred. Details: {ex}")  
                 
         except Exception as ex:            
-            print(f"Oops! {ex.__class__} occurred. Details: {ex}")  
+            logger.error(f"Oops! {ex.__class__} occurred. Details: {ex}")
+            error_occurred = True
             
         finally:
             
@@ -91,7 +102,7 @@ class LocalOutboxService:
                     self.is_busy = False
                     return
             
-            error_occured = remaining == None or ready == None
+            error_occured = remaining == None or ready == None or error_occurred == True
             no_remaining_items_are_ready = True if remaining != None and remaining > 0 and ready != None and ready == 0 else False
             previous_batch_did_not_publish = previous_batch_remaining != None and remaining == previous_batch_remaining
             add_extra_delay = error_occured or no_remaining_items_are_ready or previous_batch_did_not_publish

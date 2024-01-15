@@ -12,6 +12,6 @@ class MessageDatabase(DatabaseContext):
         super().__init__(DBBase)
     
     def create_db_engine(self) -> Engine:
-        return create_engine('sqlite:///message_store.db', echo=True)
+        return create_engine('sqlite:///message_store.db', echo=False, pool_size=10, max_overflow=20)
 
 message_database = MessageDatabase()
