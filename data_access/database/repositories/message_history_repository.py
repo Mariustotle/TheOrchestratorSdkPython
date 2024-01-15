@@ -19,4 +19,4 @@ class MessageHistoryRepository(RepositoryBase):
 
     async def delete_old_message_history(self, retention_in_days:int):        
         threshold_date = datetime.utcnow() - timedelta(days=retention_in_days)
-        self.query(MessageHistory).filter(MessageHistory.completed_date < threshold_date).delete()
+        self.session.query(MessageHistory).filter(MessageHistory.completed_date < threshold_date).delete()
