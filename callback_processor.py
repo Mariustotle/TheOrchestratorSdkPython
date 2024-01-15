@@ -48,7 +48,7 @@ class CallbackProcessor:
     
     async def _process_event(self, processor_name:str, reference:str, event_name:str, json_payload:str, unit_of_work:UnitOfWork):        
         handler = self.event_handlers[processor_name]        
-        request =  self.from_json(json_payload, handler.request_type)
+        request = self.from_json(json_payload, handler.request_type) if json_payload != None else None
         return await handler.process(request=request, event_name=event_name, reference=reference, unit_of_work=unit_of_work)    
     
         
