@@ -3,7 +3,7 @@ from pydantic import BaseModel
 from typing import Optional
 
 from orchestrator_sdk.contracts.publishing.publish_envelope import PublishEnvelope
-from orchestrator_sdk.data_access.local_persistance.unit_of_work import UnitOfWork
+from orchestrator_sdk.data_access.database.unit_of_work import UnitOfWork
 
 class MessageBrokerPublisherInterface(ABC, BaseModel):
 

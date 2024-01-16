@@ -4,7 +4,7 @@ from orchestrator_sdk.seedworks.logger import Logger
 
 from orchestrator_sdk.seedworks.config_reader import ConfigReader
 from orchestrator_sdk.contracts.orchestrator_config import OrchestratorConfig
-from orchestrator_sdk.data_access.local_persistance.unit_of_work import UnitOfWork
+from orchestrator_sdk.data_access.database.unit_of_work import UnitOfWork
 
 T = TypeVar('T')
 
