@@ -8,16 +8,26 @@ class PublishEnvelope(BaseModel):
     publish_request:Optional[object] = None
     source_message_id:Optional[str] = None
     group_trace_key:Optional[str] = None
+    priority:Optional[int] = None    
     
     ## TODO: Remove trace data from payload into envolope level data to be passed in the header not body    
     
-    def Create(self, publish_request:object, endpoint:str, handler_name:str, reference:Optional[str] = None, source_message_id:Optional[str] = None, group_trace_key:Optional[str] = None):
+    def Create(self, 
+            publish_request:object, 
+            endpoint:str, 
+            handler_name:str, 
+            reference:Optional[str] = None, 
+            source_message_id:Optional[str] = None, 
+            group_trace_key:Optional[str] = None,
+            priority:Optional[int] = None):
+        
         self.publish_request = publish_request
         self.endpoint = endpoint
         self.handler_name = handler_name,
         self.reference = reference,
         self.source_message_id = source_message_id
         self.group_trace_key = group_trace_key    
+        self.priority = priority
 
         return self
     

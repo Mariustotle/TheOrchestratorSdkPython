@@ -28,7 +28,8 @@ class PublishOutboxWith2PC(MessageBrokerPublisherInterface):
                 endpoint=publish_instruction.endpoint,
                 publish_request_object=publish_instruction.publish_request,
                 source_message_id=publish_instruction.source_message_id,
-                group_trace_key=publish_instruction.group_trace_key)
+                group_trace_key=publish_instruction.group_trace_key,
+                priority = publish_instruction.priority)
 
             # Save to local SQLLite database with status Pending with the [transaction_number] above
             await unit_of_work.message_outbox_repository.add_message(pending_message)

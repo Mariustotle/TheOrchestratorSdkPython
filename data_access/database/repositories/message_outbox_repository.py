@@ -106,7 +106,7 @@ class MessageOutboxRepository(RepositoryBase):
         
         next_messages = self.session.query(MessageOutboxEntity)\
             .filter(MessageOutboxEntity.status == OutboxStatus.Ready.name)\
-            .order_by(MessageOutboxEntity.created_date)\
+            .order_by(MessageOutboxEntity.priority.desc(), MessageOutboxEntity.created_date)\
             .limit(batch_size)\
             .all()
         

@@ -18,14 +18,20 @@ class QueueCommandHandlerBase(CommandHandlerBase[T, Y]):
         
         self.queue_name = queue_name
         
-    def build_request(self, request_object:T, reference:Optional[str] = None) -> QueueCommandRequest:           
+    def build_request(self, request_object:T, reference:Optional[str] = None, priority:Optional[int] = None) -> QueueCommandRequest:           
         serialized_payload = request_object.json()
         
         source_message_id = None
-        group_trace_key = None
+        group_trace_key = None      
+           
         if CallbackContext.is_available():
             source_message_id = CallbackContext.message_id.get()
             group_trace_key = CallbackContext.group_trace_key.get()
+            priority_raw = CallbackContext.priority.get()
+            
+            if priority == None and priority_raw != None:
+                converted = int(priority_raw)
+                priority = converted if converted > 0 else None 
         
         publish_request = QueueCommandRequest().Create(
                 queue_name=self.queue_name, command_name=self.command_name, command_reference=reference,
@@ -45,13 +51,14 @@ class QueueCommandHandlerBase(CommandHandlerBase[T, Y]):
             handler_name=self.processor_name,
             reference=reference,
             source_message_id=source_message_id,
-            group_trace_key=group_trace_key
+            group_trace_key=group_trace_key,
+            priority=priority
         )
 
         # Set DeDuplicate Details after building the base request using request.AddDeDuplicationInstruction()
         
-        return envelope     
-       
+        return envelope
+    
     
          
     

@@ -57,7 +57,7 @@ class CommandHandlerBase(ABC, Generic[T, Y]):
         self.command_name = command_name
         
     @abstractmethod
-    def build_request(self, request_object:T, reference:Optional[str] = None) -> PublishEnvelope:
+    def build_request(self, request_object:T, reference:Optional[str] = None, priority:Optional[int] = None) -> PublishEnvelope:
         pass
     
     @abstractmethod

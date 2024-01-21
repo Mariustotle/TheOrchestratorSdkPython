@@ -21,6 +21,7 @@ def init_callback_context_for_fastapi(func):
             group_trace_key = request.query_params.get("GroupTraceKey")
             dispatcher = request.query_params.get("Dispatcher")
             action = request.query_params.get("ActionType")
+            priority = request.query_params.get("Priority")
             
             with CallbackContext(
                 account_id=account_id,
@@ -31,7 +32,8 @@ def init_callback_context_for_fastapi(func):
                 message_type = message_type,
                 reference=reference,
                 action=action,
-                application_name=application_name):             
+                application_name=application_name,
+                priority=priority):             
                 
                 return await func(*args, **kwargs)
         else:

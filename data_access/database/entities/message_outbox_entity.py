@@ -21,13 +21,15 @@ class MessageOutboxEntity(MessageEntityBase):
     process_count = Column(Integer, nullable=False)
     eligible_after = Column(DATETIME, nullable=True)
     endpoint = Column(String, nullable=False)
+    priority = Column(Integer, nullable=True)
     
     def Create(self, 
                publish_request_object:object,
                endpoint:str,
                handler_name:str,
                source_message_id:str,
-               group_trace_key:str):       
+               group_trace_key:str,
+               priority:int):       
 
         self.publish_request_object = publish_request_object.json() if publish_request_object is not None else None
         self.status = str(OutboxStatus.Pending.name)
@@ -40,6 +42,7 @@ class MessageOutboxEntity(MessageEntityBase):
         self.is_completed = str(False)
         self.published_date = None
         self.endpoint = endpoint
+        self.priority = priority
                 
         return self 
 
