@@ -27,7 +27,7 @@ class SyncService():
         response = requests.post(endpoint, data=json_data, headers=headers, verify=False)
         
         if response.status_code != 200:
-            raise Exception(f'Request failed with status code [{response.status_code}] for [{request}]') 
+            raise Exception(f'Request failed with status code [{response.status_code}] for [{request}]. Details [{response.text}]') 
         
         return response
    
