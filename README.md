@@ -7,9 +7,8 @@ This submodule is a shared resource that assists python applications to easily l
 - Local transactional integrity (2PC/OutBox)
 
 ## Add to Python Project
-1. Create a submodule folder in the root of your python application (PythonClient) called 'orchestrator_sdk' (From main) <br/>
-`git submodule add https://github.com/Mariustotle/TheOrchestratorSdkPython.git orchestrator_sdk`
-2. Navigate to the parent folder (PythonClient) of the submodule and run > `git submodule init`
+1. Create a submodule folder in the root of your python application called 'orchestrator_sdk' (From main) <br/>
+`git submodule add https://inoxidev@dev.azure.com/inoxidev/The%20Orchestrator/_git/TheOrchestratorSdkPython orchestrator_sdk`
 2. Add the packages from "requirements.txt" to your main application "requirements.txt"
 
 ## How to update the Submodule
