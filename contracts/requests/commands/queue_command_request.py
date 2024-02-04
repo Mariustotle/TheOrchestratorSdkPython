@@ -3,7 +3,6 @@ from pydantic import BaseModel, UUID4
 
 from orchestrator_sdk.contracts.requests.common.de_duplication_details import DeDuplicationDetails
 from orchestrator_sdk.contracts.requests.common.success_event_details import SuccessEventDetails
-from orchestrator_sdk.contracts.requests.common.tracing_data import TracingData
 
 class QueueCommandRequest(BaseModel):    
     
@@ -20,7 +19,7 @@ class QueueCommandRequest(BaseModel):
     
     DeDuplicationDetails:Optional[DeDuplicationDetails] = None
     SuccessEventDetails:Optional[SuccessEventDetails] = None
-    TracingData:Optional[TracingData] = None
+    SourceTraceMessageId: UUID4 = None
 
     def Create(self, 
                application_name:str,
@@ -32,7 +31,8 @@ class QueueCommandRequest(BaseModel):
                content:Optional[str] = None,
                command_reference:Optional[str] = None,
                block_retry:Optional[str] = None,
-               command_version:Optional[str] = None):       
+               command_version:Optional[str] = None,
+               source_trace_message_id:Optional[UUID4] = None):       
 
         self.ApplicationName = application_name
         self.CommandName = command_name
@@ -44,6 +44,7 @@ class QueueCommandRequest(BaseModel):
         self.Dispatcher = dispatcher
         self.Content = content
         self.BlockRetry = block_retry
+        self.SourceTraceMessageId = source_trace_message_id
         
         return self 
     
@@ -51,15 +52,8 @@ class QueueCommandRequest(BaseModel):
             success_event_name:str):
         
         self.SuccessEventDetails = SuccessEventDetails().Create(on_success_raise_event=True, success_event_name=success_event_name)        
-        return self
-    
-    def AddTracingData(self,
-            source_message_id:UUID4,
-            group_trace_key:Optional[UUID4] = None):
-        
-        self.TracingData = TracingData().Create(source_message_id=source_message_id, group_trace_id=group_trace_key)
-        return self
-    
+        return self    
+   
     def AddDeDuplicationInstruction(self,
             unique_interaction_header:Optional[str] = None):
         

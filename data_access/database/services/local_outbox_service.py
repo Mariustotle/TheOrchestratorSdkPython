@@ -72,8 +72,7 @@ class LocalOutboxService:
                             endpoint=message.endpoint,
                             publish_request=publish_request,
                             handler_name=message.handler_name,
-                            source_message_id=message.source_message_id,
-                            group_trace_key=message.group_trace_key,
+                            source_trace_message_id=message.source_trace_message_id,
                             priority=message.priority)
                            
                     await api_submission.submit(envelope)

@@ -18,25 +18,15 @@ class ConcurrentCommandHandlerBase(CommandHandlerBase[T, Y]):
     def build_request(self, request_object:T, reference:Optional[str] = None, priority:Optional[int] = None) -> PublishEnvelope:        
         callback_payload = request_object.json()
         
-        source_message_id = None
-        group_trace_key = None        
+        source_trace_message_id = None  
         
         if CallbackContext.is_available():
-            source_message_id = CallbackContext.message_id.get()
-            group_trace_key = CallbackContext.group_trace_key.get()
-            priority_raw = CallbackContext.priority.get()
-            
-            if priority == None and priority_raw != None:
-                converted = int(priority_raw)
-                priority = converted if converted > 0 else None 
+            source_trace_message_id = CallbackContext.trace_message_id.get()
         
         publish_request = ConcurrentCommandRequest().Create(
                 command_name=self.command_name, command_reference=reference,
                 content=callback_payload, process_wenhook_name=self.process_webhook_name,
-                dispatcher=self.processor_name, application_name=self.application_name, priority=priority)
-        
-        if (source_message_id != None):
-            publish_request.AddTracingData(source_message_id=source_message_id, group_trace_key=group_trace_key)     
+                dispatcher=self.processor_name, application_name=self.application_name, priority=priority, source_trace_message_id=source_trace_message_id)
         
         if (self.on_success_event_name != None and self.on_success_event_name != ''):
             publish_request.PublishEventOnSuccess(event_name=self.on_success_event_name, event_version=self.response_version)
@@ -46,8 +36,7 @@ class ConcurrentCommandHandlerBase(CommandHandlerBase[T, Y]):
             endpoint=self.publish_url,
             handler_name=self.processor_name,
             reference=reference,
-            source_message_id=source_message_id,
-            group_trace_key=group_trace_key,
+            source_trace_message_id=source_trace_message_id,
             priority=priority
         )
 

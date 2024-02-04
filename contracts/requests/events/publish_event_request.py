@@ -3,7 +3,6 @@ from typing import Optional
 from pydantic import BaseModel, UUID4
 
 from orchestrator_sdk.contracts.requests.common.de_duplication_details import DeDuplicationDetails
-from orchestrator_sdk.contracts.requests.common.tracing_data import TracingData
 
 class PublishEventRequest(BaseModel):    
     
@@ -12,14 +11,12 @@ class PublishEventRequest(BaseModel):
     EventVersion:Optional[str] = None
     EventReference:Optional[str] = None
     Content:Optional[str] = None
-    SourceMessageId:Optional[UUID4] = None,
-    GroupTraceKey: Optional[UUID4] = None
     Priority:Optional[int] = None
     DeDuplicate:bool = None
     UniqueInteractionHeader: Optional[str] = None
     
     DeDuplicationDetails:Optional[DeDuplicationDetails] = None
-    TracingData:Optional[TracingData] = None
+    SourceTraceMessageId: UUID4 = None
     
     def Create(self, 
                application_name:[str],
@@ -27,7 +24,8 @@ class PublishEventRequest(BaseModel):
                priority:Optional[int] = None,
                content:Optional[str] = None,
                event_reference:Optional[str] = None,
-               event_version:Optional[str] = None):       
+               event_version:Optional[str] = None,
+               source_trace_message_id:Optional[UUID4] = None):       
 
         self.ApplicationName = application_name
         self.EventName = event_name
@@ -35,16 +33,10 @@ class PublishEventRequest(BaseModel):
         self.EventReference = event_reference
         self.Content = content
         self.Priority = priority
+        self.SourceTraceMessageId = source_trace_message_id
         
-        return self     
+        return self        
    
-    def AddTracingData(self,
-            source_message_id:UUID4,
-            group_trace_key:Optional[UUID4] = None):
-        
-        self.TracingData = TracingData().Create(source_message_id=source_message_id, group_trace_id=group_trace_key)
-        return self
-    
     def AddDeDuplicationInstruction(self,
             unique_interaction_header:Optional[str] = None):
         

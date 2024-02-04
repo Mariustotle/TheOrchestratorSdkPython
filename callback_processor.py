@@ -57,11 +57,11 @@ class CallbackProcessor:
         if (not CallbackContext.is_available()):
             raise Exception(f"Unable to process callback, please verify that you have added the [@init_callback_context_for_xxx] decoration to the API method")
         
-        message_id:uuid = uuid.UUID(CallbackContext.message_id.get()) if CallbackContext.message_id.get() is not None else None
+        trace_message_id:uuid = uuid.UUID(CallbackContext.trace_message_id.get()) if CallbackContext.trace_message_id.get() is not None else None
         if unit_of_work is not None:           
-            already_processed:bool = await self.idempotence_service.has_message_been_processed(message_id=message_id, unit_of_work=unit_of_work)
+            already_processed:bool = await self.idempotence_service.has_message_been_processed(trace_message_id=trace_message_id, unit_of_work=unit_of_work)
             if already_processed:
-                logger.info(f'Idempotence check: Message [{message_id}] have already been processed, skipping this request.')
+                logger.info(f'Idempotence check: Message [{trace_message_id}] have already been processed, skipping this request.')
                 return # Our work here is done
         
         message_name:str = CallbackContext.message_name.get()   
@@ -97,7 +97,7 @@ class CallbackProcessor:
             )
             
         if unit_of_work is not None: 
-            await unit_of_work.message_history_repository.add_message(message_id)
+            await unit_of_work.message_history_repository.add_message(trace_message_id)
             unit_of_work.message_session.commit()
             
         return response_object

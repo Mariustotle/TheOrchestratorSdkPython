@@ -9,12 +9,12 @@ class MessageHistoryRepository(RepositoryBase):
     def __init__(self, session: Session):
         super().__init__(session)
 
-    async def has_message_been_processed(self, message_id:uuid4) -> bool:        
-        found =  self.session.query(MessageHistory).filter_by(message_id=str(message_id)).first()            
+    async def has_message_been_processed(self, trace_message_id:uuid4) -> bool:        
+        found =  self.session.query(MessageHistory).filter_by(trace_message_id=str(trace_message_id)).first()            
         return (found != None)
     
-    async def add_message(self, message_id:uuid4):
-        new_history = MessageHistory().Create(message_id=message_id, completed_date=datetime.utcnow())       
+    async def add_message(self, trace_message_id:uuid4):
+        new_history = MessageHistory().Create(trace_message_id=trace_message_id, completed_date=datetime.utcnow())       
         self.session.add(new_history)
 
     async def delete_old_message_history(self, retention_in_days:int):        

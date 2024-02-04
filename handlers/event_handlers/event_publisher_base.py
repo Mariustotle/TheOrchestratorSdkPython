@@ -37,32 +37,21 @@ class EventPublisherBase(ABC, Generic[T]):
     def build_request(self, request_object:T, reference:Optional[str] = None, priority:Optional[int] = None) -> PublishEventRequest:        
         serialized_payload = request_object.json()
         
-        source_message_id = None
-        group_trace_key = None
+        source_trace_message_id = None
         
         if CallbackContext.is_available():
-            source_message_id = CallbackContext.message_id.get()
-            group_trace_key = CallbackContext.group_trace_key.get()
-            priority_raw = CallbackContext.priority.get()
-            
-            if priority == None and priority_raw != None:
-                converted = int(priority_raw)
-                priority = converted if converted > 0 else None   
+            source_trace_message_id = CallbackContext.trace_message_id.get()
         
         publish_request:PublishEventRequest = PublishEventRequest().Create(
             application_name=self.application_name, event_name=self.event_name, priority=priority, 
-            event_version=self.request_version, event_reference=reference, content=serialized_payload)
-        
-        if (source_message_id != None):
-            publish_request.AddTracingData(source_message_id=source_message_id, group_trace_key=group_trace_key)
+            event_version=self.request_version, event_reference=reference, content=serialized_payload, source_trace_message_id=source_trace_message_id)
             
         envelope = PublishEnvelope().Create(
             publish_request=publish_request,
             endpoint=self.publish_url,
             handler_name=self.processor_name,
             reference=reference,
-            source_message_id=source_message_id,
-            group_trace_key=group_trace_key,
+            source_trace_message_id=source_trace_message_id,
             priority=priority)
 
         # Set DeDuplicate Details after building the base request using request.AddDeDuplicationInstruction()

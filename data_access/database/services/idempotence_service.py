@@ -12,11 +12,11 @@ class IdempotenceService:
     min_cleanup_interval_in_hours:int = 5
     retention_period_in_days:int = 30
 
-    async def has_message_been_processed(self, message_id:uuid4, unit_of_work:UnitOfWork) -> bool:
+    async def has_message_been_processed(self, trace_message_id:uuid4, unit_of_work:UnitOfWork) -> bool:
         now = datetime.utcnow()
         do_cleanup:bool = True if self.last_timestamp is None or now - self.last_timestamp > timedelta(hours=1) else False
         
-        has_been_processed = await unit_of_work.message_history_repository.has_message_been_processed(message_id=message_id)
+        has_been_processed = await unit_of_work.message_history_repository.has_message_been_processed(trace_message_id=trace_message_id)
         
         
         if do_cleanup:

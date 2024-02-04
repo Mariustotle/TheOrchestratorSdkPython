@@ -15,7 +15,7 @@ def init_callback_context_for_fastapi(func):
             
             # From Query String
             reference = request.query_params.get("Reference")
-            message_id = request.query_params.get("MessageId")
+            trace_message_id = request.query_params.get("TraceMessageId")
             message_name = request.query_params.get("MessageName")
             message_type = request.query_params.get("MessageType")       
             group_trace_key = request.query_params.get("GroupTraceKey")
@@ -25,7 +25,7 @@ def init_callback_context_for_fastapi(func):
             
             with CallbackContext(
                 account_id=account_id,
-                message_id=message_id,
+                trace_message_id=trace_message_id,
                 group_trace_key=group_trace_key,
                 dispatcher=dispatcher,
                 message_name=message_name,

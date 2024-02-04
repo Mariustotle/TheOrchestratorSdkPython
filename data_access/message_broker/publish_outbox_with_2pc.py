@@ -2,7 +2,6 @@ from typing import Optional
 from orchestrator_sdk.seedworks.logger import Logger
 from orchestrator_sdk.data_access.message_broker.message_broker_publisher_interface import MessageBrokerPublisherInterface
 from orchestrator_sdk.contracts.publishing.publish_envelope import PublishEnvelope
-from orchestrator_sdk.callback_context import CallbackContext
 from orchestrator_sdk.data_access.database.unit_of_work import UnitOfWork
 from orchestrator_sdk.data_access.database.entities.message_outbox_entity import MessageOutboxEntity
 
@@ -27,8 +26,7 @@ class PublishOutboxWith2PC(MessageBrokerPublisherInterface):
                 handler_name = self._get_value_from_pydantic_property(publish_instruction.handler_name),
                 endpoint=publish_instruction.endpoint,
                 publish_request_object=publish_instruction.publish_request,
-                source_message_id=publish_instruction.source_message_id,
-                group_trace_key=publish_instruction.group_trace_key,
+                source_trace_message_id=publish_instruction.source_trace_message_id,
                 priority = publish_instruction.priority)
 
             # Save to local SQLLite database with status Pending with the [transaction_number] above

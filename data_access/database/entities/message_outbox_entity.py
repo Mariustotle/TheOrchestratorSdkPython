@@ -16,8 +16,7 @@ class MessageOutboxEntity(MessageEntityBase):
     status = Column(String, nullable=False)
     is_completed = Column(String, nullable=False)
     handler_name = Column(String, nullable=False)
-    source_message_id = Column(String, nullable=True)
-    group_trace_key = Column(String, nullable=True)
+    source_trace_message_id = Column(String, nullable=True)
     process_count = Column(Integer, nullable=False)
     eligible_after = Column(DATETIME, nullable=True)
     endpoint = Column(String, nullable=False)
@@ -27,15 +26,13 @@ class MessageOutboxEntity(MessageEntityBase):
                publish_request_object:object,
                endpoint:str,
                handler_name:str,
-               source_message_id:str,
-               group_trace_key:str,
+               source_trace_message_id:str,
                priority:int):       
 
         self.publish_request_object = publish_request_object.json() if publish_request_object is not None else None
         self.status = str(OutboxStatus.Pending.name)
         self.handler_name = handler_name
-        self.source_message_id = source_message_id
-        self.group_trace_key = group_trace_key
+        self.source_trace_message_id = source_trace_message_id
         self.process_count = 0
         self.eligible_after = None
         self.created_date = datetime.utcnow()

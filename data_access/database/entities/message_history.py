@@ -8,14 +8,14 @@ import json
 class MessageHistory(MessageEntityBase):
     __tablename__ = 'MessageHistory'
 
-    message_id = Column(String, nullable=False)
+    trace_message_id = Column(String, nullable=False)
     completed_date = Column(DATETIME, nullable=False)    
    
     def Create(self, 
-               message_id:uuid4,
+               trace_message_id:uuid4,
                completed_date:datetime):       
 
-        self.message_id = str(message_id)
+        self.trace_message_id = str(trace_message_id)
         self.completed_date = completed_date
                 
         return self 

@@ -39,9 +39,9 @@ class MessageOutboxRepository(RepositoryBase):
         self.session = session
         self.transaction_reference = transaction_reference
 
-    def get_message_by_id(self, message_id) -> MessageOutboxSchema:
+    def get_message_by_id(self, trace_message_id) -> MessageOutboxSchema:
         
-        db_entity = self.session.query(MessageOutboxEntity).filter_by(id=message_id).first()
+        db_entity = self.session.query(MessageOutboxEntity).filter_by(id=trace_message_id).first()
         
         converted:MessageOutboxSchema = None
         
