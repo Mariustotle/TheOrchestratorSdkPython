@@ -19,5 +19,3 @@ class MessageOutboxSchema(BaseModel):
     process_count: int
     eligible_after: Optional[datetime]
 
-    class Config:
-        from_attributes = True
