@@ -6,5 +6,3 @@ class MessageEntityBase(DBBase):
     __abstract__ = True
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
 
-    class Config:
-        from_attributes = True
