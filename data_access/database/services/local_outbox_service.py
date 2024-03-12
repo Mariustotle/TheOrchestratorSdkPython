@@ -29,24 +29,25 @@ class LocalOutboxService:
         self.lock = Lock()
         self.message_database = message_database
         
-    async def check_for_messages_that_are_ready(self):
+    async def check_for_messages_that_are_ready(self):       
+
+        if self.is_busy:
+            return
+        else:
+            self.is_busy = True
+            
+        try:           
+            self.remaining_count = None
+            
+            await asyncio.sleep(5)
+            await asyncio.create_task(self.process_next_batch())
+                        
+        except Exception as ex:
+            logger.error("Failed to process next batch of outbox items", ex)
         
-        async with self.lock:
-            if self.is_busy:
-                return            
-            
-            try:
-                self.is_busy = True                
-                self.remaining_count = None
-                
-                await asyncio.create_task(self.process_next_batch())
-                            
-            except Exception as ex:
-                logger.error("Failed to process next batch of outbox items", ex)
-            
-            finally:                
-                self.is_busy = False
-            
+        finally:           
+            self.is_busy = False
+                  
     
     async def process_next_batch(self):
         
@@ -56,15 +57,16 @@ class LocalOutboxService:
         ready:int = None
         api_submission = ApiSubmission()
         error_occurred = False
+        add_extra_delay = True
+        success_count = 0
         
         with self.message_database.db_session_maker() as session:
         
             try:           
                 outbox_repo = MessageOutboxRepository(session, None)           
-                batch_result:ReadyForSubmissionBatch = await outbox_repo.get_next_messages(batch_size=self.BATCH_SIZE)
-            
-                if (batch_result.messages_not_completed > 0):               
-                    logger.info(f'Batch Processing Summary >>>> Remaining [{len(batch_result.messages)}/{batch_result.messages_not_completed}] Ready [{batch_result.messages_ready}] Intervention [{batch_result.messages_needing_intervention}] <<<<')
+                batch_result:ReadyForSubmissionBatch = await outbox_repo.get_next_messages(batch_size=self.BATCH_SIZE)               
+                logger.info(f'OUTBOX Queue Summary >>>> Remaining [{len(batch_result.messages)}/{batch_result.messages_not_completed}] Ready [{batch_result.messages_ready}] Intervention [{batch_result.messages_needing_intervention}] <<<<')
+                logger.info(f'MESSAGE DB POOL STATUS: [{self.message_database.db_engine.pool.status()}]')
                 
                 self.remaining_count = batch_result.messages_not_completed
                 remaining = self.remaining_count
@@ -87,6 +89,7 @@ class LocalOutboxService:
                             message.status = OutboxStatus.Published.name
                             message.is_completed = True
                             session.commit()
+                            success_count += 1
                     
                     except RequestsConnectionError:
                             error_occurred = True
@@ -98,29 +101,29 @@ class LocalOutboxService:
                             logger.error(f"Oops! {ex.__class__} occurred. Details: {ex}")
                             raise
                     
-            except Exception as ex:            
+            except Exception as ex:   
+                error_occurred = True         
                 logger.error(f"Oops! {ex.__class__} occurred. Details: {ex}")
-                error_occurred = True
                 logger.info(f'MESSAGE DB POOL STATUS: [{self.message_database.db_engine.pool.status()}]')
                 session.rollback()
                 
             finally:
                 
-                if remaining == 0:                
+                if (remaining - success_count) <= 0:                
                     async with self.lock:
                         await self.cleanup(session=session)                
                         self.is_busy = False
                         return
                 
                 error_occured = remaining == None or ready == None or error_occurred == True
-                no_remaining_items_are_ready = True if remaining != None and remaining > 0 and ready != None and ready == 0 else False
+                no_remaining_items_are_ready = True if remaining != None and ready != None and ready == 0 else False
                 previous_batch_did_not_publish = previous_batch_remaining != None and remaining == previous_batch_remaining
-                add_extra_delay = error_occured or no_remaining_items_are_ready or previous_batch_did_not_publish
+                add_extra_delay = error_occured or no_remaining_items_are_ready or previous_batch_did_not_publish                
                 
-                delay:int = self.WAIT_TIME_IN_SECONDS if add_extra_delay else 1
-                await asyncio.sleep(delay)
-                
-                asyncio.create_task(self.process_next_batch())
+        delay:int = self.WAIT_TIME_IN_SECONDS if add_extra_delay else 1
+        await asyncio.sleep(delay)
+        
+        asyncio.create_task(self.process_next_batch())
 
             
     async def cleanup(self, session):  
