@@ -36,22 +36,19 @@ class LocalOutboxService:
         
         async with self.lock:
             if self.is_busy:
-                return
+                return            
             
-            else:
-                try:
-                    self.is_busy = True
-                    
-                    self.remaining_count = None
-                    self.session = self.message_database.db_session_maker()
-                    await asyncio.create_task(self.process_next_batch())
-                                
-                except Exception as ex:
-                    logger.error("Failed to process next batch of outbox items", ex)
+            try:
+                self.is_busy = True                
+                self.remaining_count = None
                 
-                finally:
-                    self.session.close()
-                    self.is_busy = False
+                await asyncio.create_task(self.process_next_batch())
+                            
+            except Exception as ex:
+                logger.error("Failed to process next batch of outbox items", ex)
+            
+            finally:                
+                self.is_busy = False
             
     
     async def process_next_batch(self):
@@ -63,12 +60,14 @@ class LocalOutboxService:
         api_submission = ApiSubmission()
         error_occurred = False
         
+        self.session = self.message_database.db_session_maker()
+        
         try:           
            outbox_repo = MessageOutboxRepository(self.session, None)           
            batch_result:ReadyForSubmissionBatch = await outbox_repo.get_next_messages(batch_size=self.BATCH_SIZE)
            
-           if (batch_result.messages_not_completed > 0):
-                logger.info(f'Batch Processing Summary >>>> Remaining [{len(batch_result.messages)}/{batch_result.messages_not_completed}] Ready [{batch_result.messages_ready}] Intervention [{batch_result.messages_needing_intervention}] <<<<')
+           if (batch_result.messages_not_completed > 0):               
+               logger.info(f'Batch Processing Summary >>>> Remaining [{len(batch_result.messages)}/{batch_result.messages_not_completed}] Ready [{batch_result.messages_ready}] Intervention [{batch_result.messages_needing_intervention}] <<<<')
            
            self.remaining_count = batch_result.messages_not_completed
            remaining = self.remaining_count
@@ -77,8 +76,8 @@ class LocalOutboxService:
            for message in batch_result.messages:
                publish_request = message.publish_request_object
                
-               try:           
-                   
+               try:
+                                      
                     envelope = PublishEnvelope().Create(
                             endpoint=message.endpoint,
                             publish_request=publish_request,
@@ -99,11 +98,14 @@ class LocalOutboxService:
                    
                except Exception as ex:
                     error_occurred = True        
-                    logger.error(f"Oops! {ex.__class__} occurred. Details: {ex}")  
+                    logger.error(f"Oops! {ex.__class__} occurred. Details: {ex}")
+                    raise
                 
         except Exception as ex:            
             logger.error(f"Oops! {ex.__class__} occurred. Details: {ex}")
             error_occurred = True
+            logger.info(f'MESSAGE DB POOL STATUS: [{self.message_database.db_engine.pool.status()}]')
+            self.session.rollback()
             
         finally:
             
@@ -121,6 +123,8 @@ class LocalOutboxService:
             delay:int = self.WAIT_TIME_IN_SECONDS if add_extra_delay else 1
             await asyncio.sleep(delay)
             
+            self.session.close()
+            
             asyncio.create_task(self.process_next_batch())
 
             
@@ -131,4 +135,4 @@ class LocalOutboxService:
         await repo.delete_old_message_history(self.RETENTION_TIME_IN_DAYS)
         
         self.session.commit()
-        self.session.close()  
+
