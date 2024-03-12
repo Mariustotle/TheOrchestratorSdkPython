@@ -13,6 +13,7 @@ logger = Logger.get_instance()
 
 class LocalOutboxService:
     
+    lock = asyncio.Lock()
     is_busy:bool = False
     message_database:MessageDatabase = None    
     remaining_count:Optional[int] = None
@@ -26,7 +27,11 @@ class LocalOutboxService:
         self.message_database = message_database
         
     async def check_for_messages_that_are_ready(self):         
-        self.is_busy = True            
+        
+        async with LocalOutboxService.lock:            
+            if LocalOutboxService.is_busy:
+                return
+            LocalOutboxService.is_busy = True           
 
         try:           
             self.remaining_count = None
@@ -37,11 +42,12 @@ class LocalOutboxService:
         except Exception as ex:
             logger.error("Failed to process next batch of outbox items", ex)
         
-        self.is_busy = False
+        async with LocalOutboxService.lock: 
+            LocalOutboxService.is_busy = False
    
     
     async def process_next_batch(self):
-        
+                
         previous_batch_remaining = self.remaining_count
         
         remaining:int = None

@@ -94,9 +94,6 @@ class UnitOfWork:
             self.message_session.commit()
     
     def _run_post_commit_processes(self):
-        if self.local_outbox_service.is_busy:
-            return
-        
         asyncio.create_task(self.local_outbox_service.check_for_messages_that_are_ready())
             
     def _rollback_messages(self):
