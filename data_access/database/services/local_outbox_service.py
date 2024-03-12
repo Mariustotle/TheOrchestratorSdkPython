@@ -37,11 +37,22 @@ class LocalOutboxService:
         async with self.lock:
             if self.is_busy:
                 return
-            self.is_busy = True
-        
-        self.remaining_count = None
-        self.session = self.message_database.db_session_maker()
-        await asyncio.create_task(self.process_next_batch())
+            
+            else:
+                try:
+                    self.is_busy = True
+                    
+                    self.remaining_count = None
+                    self.session = self.message_database.db_session_maker()
+                    await asyncio.create_task(self.process_next_batch())
+                                
+                except Exception as ex:
+                    logger.error("Failed to process next batch of outbox items", ex)
+                
+                finally:
+                    self.session.close()
+                    self.is_busy = False
+            
     
     async def process_next_batch(self):
         
