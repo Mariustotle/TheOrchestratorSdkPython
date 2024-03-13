@@ -19,7 +19,7 @@ class LocalOutboxService:
     remaining_count:Optional[int] = None
     
     WAIT_TIME_IN_SECONDS:int = 30
-    BATCH_SIZE:int = 20
+    BATCH_SIZE:int = 40
     RETENTION_TIME_IN_DAYS:int = 30
     
     def __init__(self, message_database:MessageDatabase): 
