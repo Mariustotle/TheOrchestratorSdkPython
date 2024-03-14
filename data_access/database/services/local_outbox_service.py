@@ -63,7 +63,6 @@ class LocalOutboxService:
                 outbox_repo = MessageOutboxRepository(session, None)           
                 batch_result:ReadyForSubmissionBatch = await outbox_repo.get_next_messages(batch_size=self.BATCH_SIZE)               
                 logger.info(f'OUTBOX Queue Summary >>>> Remaining [{len(batch_result.messages)}/{batch_result.messages_not_completed}] Ready [{batch_result.messages_ready}] Intervention [{batch_result.messages_needing_intervention}] <<<<')
-                logger.info(f'MESSAGE DB POOL STATUS: [{self.message_database.db_engine.pool.status()}]')
                 
                 self.remaining_count = batch_result.messages_not_completed
                 remaining = self.remaining_count
