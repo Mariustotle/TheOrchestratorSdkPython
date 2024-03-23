@@ -4,13 +4,15 @@ from typing import Optional
 
 class WebhookRequest(BaseModel):    
     
-    Name: str = None
-    WebhookUrl: str = None
+    Name: str
+    WebhookUrl: str
     ApiToken: Optional[str] = None
 
-    def Create(self, name:[str], webhook_url:[str],  api_token:[str] = None):
-        self.Name = name
-        self.WebhookUrl = webhook_url
-        self.ApiToken = api_token
+    @staticmethod
+    def Create(name:str, webhook_url:str,  api_token:Optional[str] = None):
         
-        return self
+        return WebhookRequest(
+            Name = name,
+            WebhookUrl = webhook_url,
+            ApiToken = api_token 
+        )

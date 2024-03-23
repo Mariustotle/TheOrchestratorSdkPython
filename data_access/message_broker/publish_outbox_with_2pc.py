@@ -21,7 +21,7 @@ class PublishOutboxWith2PC(MessageBrokerPublisherInterface):
             if unit_of_work == None:
                 raise Exception(f'To use the OutboxWith2PC publisher you need to impliment a UnitOfWork context')
             
-            pending_message = MessageOutboxEntity().Create(
+            pending_message = MessageOutboxEntity.Create(
                 # TODO: Why is the pydantic class not converting properly for this specific property?
                 handler_name = self._get_value_from_pydantic_property(publish_instruction.handler_name),
                 endpoint=publish_instruction.endpoint,

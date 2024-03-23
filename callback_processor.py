@@ -1,7 +1,8 @@
 from orchestrator_sdk.callback_context import CallbackContext
-from orchestrator_sdk.handlers.command_handlers.concurrent_command_handler_base import CommandHandlerBase
-from orchestrator_sdk.handlers.event_handlers.event_subscriber_base import EventSubscriberBase
-from orchestrator_sdk.handlers.event_handlers.event_publisher_base import EventPublisherBase
+from orchestrator_sdk.message_processors.commands.command_processor_base import CommandProcessorBase
+from orchestrator_sdk.message_processors.commands.command_raiser_base import CommandRaiserBase
+from orchestrator_sdk.message_processors.events.event_publisher_base import EventPublisherBase
+from orchestrator_sdk.message_processors.events.event_subscriber_base import EventSubscriberBase
 from orchestrator_sdk.data_access.database.services.idempotence_service import IdempotenceService
 
 from orchestrator_sdk.contracts.types.action_type import ActionType
@@ -18,8 +19,9 @@ class CallbackProcessor:
     
     idempotence_service: IdempotenceService = None
     
-    command_handlers: dict[str, CommandHandlerBase] = {} 
-    event_handlers: dict[str, EventSubscriberBase] = {}
+    command_raisers: dict[str, CommandRaiserBase]
+    command_processors: dict[str, CommandProcessorBase] = {} 
+    event_subscribers: dict[str, EventSubscriberBase] = {}
     event_publishers: dict[str, EventPublisherBase] = {}
     application_name: str
 
@@ -33,24 +35,24 @@ class CallbackProcessor:
         else:
             raise TypeError("json_data must be a JSON document in str, bytes, bytearray, dict, or list format")        
         
-    def __init__(self, command_handlers, event_handlers, event_publishers): 
-        self.command_handlers = command_handlers
-        self.event_handlers = event_handlers
+    def __init__(self, command_raisers, command_processors, event_subscribers, event_publishers): 
+        self.command_raisers = command_raisers
+        self.command_processors = command_processors
+        self.event_subscribers = event_subscribers
         self.event_publishers = event_publishers
         self.idempotence_service = IdempotenceService()
    
     async def _process_command(self, processor_name:str, reference:str, command_name:str, action_type:ActionType, json_payload:str, unit_of_work:UnitOfWork):        
-        handler = self.command_handlers[processor_name]
+        handler = self.command_processors[processor_name]
         
         if (action_type == ActionType.Process):
             request =  self.from_json(json_payload, handler.request_type)
             return await handler.process(request=request, command_name=command_name, reference=reference, unit_of_work=unit_of_work)            
     
     async def _process_event(self, processor_name:str, reference:str, event_name:str, json_payload:str, unit_of_work:UnitOfWork):        
-        handler = self.event_handlers[processor_name]        
+        handler = self.event_subscribers[processor_name]        
         request = self.from_json(json_payload, handler.request_type) if json_payload != None else None
         return await handler.process(request=request, event_name=event_name, reference=reference, unit_of_work=unit_of_work)    
-    
         
     async def process(self, json_payload, unit_of_work:UnitOfWork):        
        

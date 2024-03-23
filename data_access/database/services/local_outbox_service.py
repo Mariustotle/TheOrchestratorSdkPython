@@ -73,7 +73,7 @@ class LocalOutboxService:
                     
                     try:
                                             
-                            envelope = PublishEnvelope().Create(
+                            envelope = PublishEnvelope.Create(
                                     endpoint=message.endpoint,
                                     publish_request=publish_request,
                                     handler_name=message.handler_name,

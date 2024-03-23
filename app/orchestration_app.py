@@ -4,9 +4,10 @@ from orchestrator_sdk.contracts.orchestrator_config import OrchestratorConfig
 from orchestrator_sdk.contracts.types.publish_adapter import PublishAdapter
 from orchestrator_sdk.contracts.endpoints import Endpoints
 from orchestrator_sdk.callback_processor import CallbackProcessor
-from orchestrator_sdk.handlers.command_handlers.concurrent_command_handler_base import CommandHandlerBase
-from orchestrator_sdk.handlers.event_handlers.event_subscriber_base import EventSubscriberBase
-from orchestrator_sdk.handlers.event_handlers.event_publisher_base import EventPublisherBase
+from orchestrator_sdk.message_processors.commands.command_processor_base import CommandProcessorBase
+from orchestrator_sdk.message_processors.commands.command_raiser_base import CommandRaiserBase
+from orchestrator_sdk.message_processors.events.event_publisher_base import EventPublisherBase
+from orchestrator_sdk.message_processors.events.event_subscriber_base import EventSubscriberBase
 from orchestrator_sdk.data_access.message_broker.message_broker_publisher_interface import MessageBrokerPublisherInterface
 from orchestrator_sdk.data_access.message_broker.publish_directly import PublishDirectly
 from orchestrator_sdk.data_access.message_broker.publish_locally import PublishLocally
@@ -28,9 +29,11 @@ class OrchestrationApp():
     endpoints: Endpoints = None
     base_url: str = None
     default_callback_webhook: str = None    
+  
+    command_raisers: dict[str, CommandRaiserBase] = {}
+    command_processors: dict[str, CommandProcessorBase] = {}
     
-    command_handlers: dict[str, CommandHandlerBase] = {}
-    event_handlers: dict[str, EventSubscriberBase] = {}
+    event_subscribers: dict[str, EventSubscriberBase] = {}
     event_publishers: dict[str, EventPublisherBase] = {}    
     
     processor:CallbackProcessor = None
@@ -39,20 +42,25 @@ class OrchestrationApp():
     async def process_request(self, jsonPayload, unit_of_work:UnitOfWork):     
         return await self.processor.process(jsonPayload, unit_of_work)
 
-    def add_command_handler(self, handler:CommandHandlerBase):
-        self.command_handlers[handler.processor_name] = handler
+    def add_command_raiser(self, command_raiser:CommandRaiserBase):
+        self.command_raisers[command_raiser.processor_name] = command_raiser
         
-    def add_event_handler(self, handler:EventSubscriberBase):
-        self.event_handlers[handler.processor_name] = handler
+    def add_command_processor(self, command_processor:CommandProcessorBase):
+        self.command_processors[command_processor.processor_name] = command_processor        
         
-    def add_event_publisher(self, publisher:EventPublisherBase):
-        self.event_publishers[publisher.processor_name] = publisher
+    def add_event_subscriber(self, event_subscriber:EventSubscriberBase):
+        self.event_subscribers[event_subscriber.processor_name] = event_subscriber
+        
+    def add_event_publisher(self, event_publisher:EventPublisherBase):
+        self.event_publishers[event_publisher.processor_name] = event_publisher
     
     def __init__(self) -> bool:       
         
-        self.processor = CallbackProcessor(command_handlers=self.command_handlers, 
-                                           event_handlers=self.event_handlers, 
-                                           event_publishers=self.event_publishers)
+        self.processor = CallbackProcessor(
+            command_raisers=self.command_raisers,
+            command_processors=self.command_processors,
+            event_publishers=self.event_publishers,
+            event_subscribers=self.event_subscribers)
         
     def start(self, application_database:Optional[DatabaseContext] = None):        
         config_reader = ConfigReader()
@@ -89,11 +97,14 @@ class OrchestrationApp():
         self.processor.application_name = self.application_name        
         self.endpoints = Endpoints(orchestrator_settings.base_url)
         
-        subscriptions = self.event_handlers.values()
+        subscribers = self.event_subscribers.values()
         publishers = self.event_publishers.values()
+        raisers = self.command_raisers.values()
+        processors = self.command_processors.values()
         
         sync_service = SyncService() 
-        self.syncronized_with_orchestrator = sync_service.init(orchestrator_settings, self.endpoints, subscriptions, publishers)
+        self.syncronized_with_orchestrator = sync_service.init(settings=orchestrator_settings, endpoints=self.endpoints, 
+           event_publishers=publishers, event_subscribers=subscribers, command_raisers=raisers, command_processors=processors)
         
         outbox_service = LocalOutboxService(message_database)
         asyncio.create_task(outbox_service.check_for_messages_that_are_ready())

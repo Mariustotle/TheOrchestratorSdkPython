@@ -6,8 +6,13 @@ from orchestrator_sdk.contracts.endpoints import Endpoints
 from orchestrator_sdk.contracts.requests.application.application_sync_request import ApplicationSyncRequest
 from orchestrator_sdk.contracts.requests.events.event_publisher_registration import EventPublisherRegistration
 from orchestrator_sdk.contracts.requests.events.event_subscriber_registration import EventSubscriberRegistration
-from orchestrator_sdk.handlers.event_handlers.event_subscriber_base import EventSubscriberBase
-from orchestrator_sdk.handlers.event_handlers.event_publisher_base import EventPublisherBase
+from orchestrator_sdk.contracts.requests.commands.command_processor_registration import CommandProcessorRegistration
+from orchestrator_sdk.contracts.requests.commands.command_raiser_registration import CommandRaiserRegistration
+from orchestrator_sdk.message_processors.events.event_subscriber_base import EventSubscriberBase
+from orchestrator_sdk.message_processors.events.event_publisher_base import EventPublisherBase
+from orchestrator_sdk.message_processors.commands.command_processor_base import CommandProcessorBase
+from orchestrator_sdk.message_processors.commands.command_raiser_base import CommandRaiserBase
+
 from typing import Optional, List
 
 import requests
@@ -32,10 +37,10 @@ class SyncService():
    
 
     def init(self, settings:OrchestratorConfig, endpoints:Endpoints, 
-             event_subscribers:List[EventSubscriberBase], event_publishers:List[EventPublisherBase]) -> bool:
+             event_subscribers:List[EventSubscriberBase] = None, event_publishers:List[EventPublisherBase] = None,
+             command_raisers:List[CommandProcessorBase] = None, command_processors:List[CommandProcessorBase] = None) -> bool:
        
-        try:            
-            self.associate_application()
+        try:
             
             update_webhook_endpoint = endpoints.get_sync_default_webhook_endpoint()             
             self.sync_default_webhook(update_webhook_endpoint,
@@ -44,36 +49,37 @@ class SyncService():
                     settings.default_callback_webhook.url, 
                     settings.default_callback_webhook.api_token)           
                  
-            event_subscriptions = self.build_event_subscriptions(event_subscribers)        
-            event_publishers = self.build_event_publishers(event_publishers)
+            event_subscriptions_reg = self.build_event_subscriptions(event_subscribers) if event_subscribers != None else None
+            event_publishers_reg = self.build_event_publishers(event_publishers) if event_publishers != None else None
+            command_raisers_reg = self.build_command_raisers(command_raisers) if command_raisers != None else None
+            command_processors_reg = self.build_command_processors(command_processors) if command_processors != None else None
             
             sync_application_message_processors_endpoint = endpoints.get_sync_application_message_processors()
             self.sync_applicaton_message_processors(
-                    endpoint=sync_application_message_processors_endpoint,
-                    application_name=settings.application_name,
-                    event_subscribers=event_subscriptions,
-                    event_publishers=event_publishers)     
+                    endpoint = sync_application_message_processors_endpoint,
+                    application_name = settings.application_name,
+                    event_subscribers = event_subscriptions_reg,
+                    event_publishers = event_publishers_reg,
+                    command_raisers = command_raisers_reg,
+                    command_processors = command_processors_reg)     
             
             self.SuccessfullyInitiatlized = True
             
         except Exception as ex:
             logger.error(f"Oops! {ex.__class__} occurred. Details: {ex}")
             
-            return False
-    
-    def associate_application(self):
-        print('Application Registered')
-    
+            return False    
+  
     
     def sync_default_webhook(self, endpoint:str, webhook_name:str, application_name:str, webhook_url:str, webhook_token:str) -> bool:
         
        	try:            
-            application_webhook = WebhookRequest().Create(name=webhook_name, webhook_url=webhook_url, api_token=webhook_token)
+            application_webhook = WebhookRequest.Create(name=webhook_name, webhook_url=webhook_url, api_token=webhook_token)
             
             webhooks = []         
             webhooks.append(application_webhook)
             
-            request = SyncWebhooksRequest().Create(application_name=application_name, webhooks=webhooks)            
+            request = SyncWebhooksRequest.Create(application_name=application_name, webhooks=webhooks)            
            
             self._post(request, endpoint)
             
@@ -84,21 +90,24 @@ class SyncService():
             logger.error(f"Oops! {ex.__class__} occurred. Details: {ex}")
             return False
  
-        
 
-    def sync_applicaton_message_processors(self, endpoint:str, application_name:str, event_publishers:List[EventPublisherRegistration],
-                                           event_subscribers:List[EventSubscriberRegistration]) -> bool:
-        
+    def sync_applicaton_message_processors(self, endpoint:str, application_name:str, event_publishers:List[EventPublisherRegistration] = None,
+                                           event_subscribers:List[EventSubscriberRegistration] = None, command_raisers:List[CommandRaiserRegistration] = None,
+                                           command_processors:List[CommandRaiserRegistration] = None) -> bool:
+                
        	try:            
             application_sync = ApplicationSyncRequest.Create(
-                application_name=application_name, event_publishers=event_publishers, event_subscribers=event_subscribers)      
+                application_name=application_name, event_publishers=event_publishers, event_subscribers=event_subscribers,
+                command_raisers=command_raisers, command_processors=command_processors)      
            
             response = self._post(application_sync, endpoint)
             
-            eventPublisherCount = len(event_publishers) if event_publishers != None else 0
-            eventSubscriberCount = len(event_subscribers) if event_subscribers != None else 0
+            event_publisher_count = len(event_publishers) if event_publishers != None else 0
+            event_subscriber_count = len(event_subscribers) if event_subscribers != None else 0
+            command_raiser_count = len(command_raisers) if command_raisers != None else 0
+            command_processor_count = len(command_processors) if command_processors != None else 0
             
-            logger.info(f'Message Proceessors Syncronized. Event Publishers [{eventPublisherCount}], Event Subscribers [{eventSubscriberCount}], Command Raisers [{0}], Command Processors [{0}]')
+            logger.info(f'Message Proceessors Syncronized. Event Publishers [{event_publisher_count}], Event Subscribers [{event_subscriber_count}], Command Raisers [{command_raiser_count}], Command Processors [{command_processor_count}]')
             
             if response.status_code != 200:
                 raise Exception(f'Request failed with status code [{response.status_code}] for [{application_name}]. Details [{response.text}]') 
@@ -109,18 +118,49 @@ class SyncService():
             logger.error(f"Oops! {ex.__class__} occurred. Details: {ex}")
             return False
     
+    def build_event_publishers(self, event_publishers:List[EventPublisherBase]):
+        publishers = []
+        
+        try:
+            if (event_publishers == None):
+                return publishers            
+            
+            items_remaining:Optional[int] = None # Do a lookup to the outbox on the message name
+            
+            for handler in event_publishers:
+                publisher = EventPublisherRegistration.Create(
+                    event_name = handler.event_name, 
+                    latest_version = handler.latest_version,
+                    processing_type=handler.processing_type,
+                    json_schema = None, # Do this dynamically from the DTO
+                    de_duplication_enabled = handler.de_duplication_enabled,
+                    items_remaining_at_source = items_remaining,
+                    allow_publishing_without_subscribers = handler.allow_publishing_without_subscribers)
+                
+                publishers.append(publisher)                
+                
+            return publishers       
+        
+        except Exception as ex:
+            logger.error(f"Oops! {ex.__class__} occurred. Details: {ex}")
+            return []
+    
   
     def build_event_subscriptions(self, event_subscribers:List[EventSubscriberBase]):
         subscriptions = []
         
         try:            
-                        
+            if (event_subscribers == None):
+                return subscriptions
+              
             for handler in event_subscribers:
                 subscription = EventSubscriberRegistration.Create(
-                    dispatcher=handler.processor_name, 
-                    event_name=handler.event_name, 
-                    webhook_name=handler.process_webhook_name,
-                    event_version=handler.request_version)
+                    dispatcher = handler.processor_name, 
+                    event_name = handler.event_name, 
+                    webhook_name = handler.process_webhook_name,
+                    max_concurrency = handler.max_concurrency_limit,
+                    event_version = handler.event_version)
+                
                 subscriptions.append(subscription)     
                            
             return subscriptions       
@@ -128,22 +168,54 @@ class SyncService():
         except Exception as ex:
             logger.error(f"Oops! {ex.__class__} occurred. Details: {ex}")
             return []
+
+
+    def build_command_raisers(self, command_raisers:List[CommandRaiserBase]):
+        raisers = []
         
-    def build_event_publishers(self, event_publishers:List[EventPublisherBase]):
-        publishers = []
+        items_remaining:Optional[int] = None # Do a lookup to the outbox on the message name
         
         try:            
+            if (command_raisers == None):
+                return raisers            
+                  
+            for handler in command_raisers:
+                subscription = CommandRaiserRegistration.Create(
+                    command_name = handler.command_name,
+                    command_version = handler.command_version,
+                    items_remaining_at_source = items_remaining)
+                
+                raisers.append(subscription)     
+                           
+            return raisers       
+        
+        except Exception as ex:
+            logger.error(f"Oops! {ex.__class__} occurred. Details: {ex}")
+            return []
+
+    def build_command_processors(self, command_processors:List[CommandProcessorBase]):
+        processors = []
+        
+        try:
             
-            for handler in event_publishers:
-                publisher = EventPublisherRegistration.Create(
-                    event_name=handler.event_name, 
-                    processing_type=handler.processing_type,
-                    jason_schema=None, # Do this dynamically from the DTO
-                    latest_version=handler.request_version)
+            if command_processors == None:
+                return processors
+                        
+            for handler in command_processors:
+                subscription = CommandProcessorRegistration.Create(
+                    command_name = handler.command_name,
+                    webhook_name = handler.process_webhook_name,
+                    procesing_type = handler.processing_type,
+                    dispatcher = handler.processor_name,
+                    de_duplication_enabled = handler.de_duplication_enabled,
+                    json_schema = None, # Do this dynamically from the DTO
+                    latest_version = handler.latest_version,
+                    max_concurrency = handler.max_concurrency_limit,
+                    requires_command_raiser_approval = handler.requires_command_raiser_approval)
                 
-                publishers.append(publisher)                
-                
-            return publishers       
+                processors.append(subscription)     
+                           
+            return processors       
         
         except Exception as ex:
             logger.error(f"Oops! {ex.__class__} occurred. Details: {ex}")

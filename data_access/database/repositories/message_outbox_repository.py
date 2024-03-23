@@ -5,29 +5,28 @@ from orchestrator_sdk.data_access.database.repository_base import RepositoryBase
 
 from sqlalchemy.orm import Session
 from uuid import uuid4
-from typing import List
-
+from typing import List, Optional
 from datetime import datetime, timedelta
 
-
 class ReadyForSubmissionBatch:
-    messages_ready:int = None
-    messages_not_completed:int = None
-    messages_needing_intervention:int = None
-    messages:List[MessageOutboxEntity] = None
+    messages_ready:int
+    messages_not_completed:int
+    messages_needing_intervention:int
+    messages:Optional[List[MessageOutboxEntity]]
     
-    def Create(self, 
-        messages_ready:int,
-        messages_not_completed:int,
-        message_needing_intervention:int,
-        messages:[MessageOutboxEntity] = None):
+    @staticmethod
+    def Create(
+            messages_ready:int,
+            messages_not_completed:int,
+            message_needing_intervention:int,
+            messages:Optional[List[MessageOutboxEntity]] = None):
         
-        self.messages_ready = messages_ready
-        self.messages_needing_intervention = message_needing_intervention
-        self.messages_not_completed = messages_not_completed
-        self.messages = messages if messages is not None else []        
-        
-        return self   
+        return ReadyForSubmissionBatch(
+            messages_ready = messages_ready,
+            messages_needing_intervention = message_needing_intervention,
+            messages_not_completed = messages_not_completed,
+            messages = messages if messages is not None else []             
+        )
 
 
 class MessageOutboxRepository(RepositoryBase):
@@ -110,7 +109,7 @@ class MessageOutboxRepository(RepositoryBase):
             .limit(batch_size)\
             .all()
         
-        bacth_result = ReadyForSubmissionBatch().Create(messages_ready=ready_count, messages_not_completed=not_completed_count, messages=next_messages, message_needing_intervention=need_intervention_count)
+        bacth_result = ReadyForSubmissionBatch.Create(messages_ready=ready_count, messages_not_completed=not_completed_count, messages=next_messages, message_needing_intervention=need_intervention_count)
         
         return bacth_result
     

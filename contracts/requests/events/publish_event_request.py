@@ -1,35 +1,36 @@
-
 from typing import Optional
 from pydantic import BaseModel, UUID4
 
-from orchestrator_sdk.contracts.requests.common.de_duplication_details import DeDuplicationDetails
-
 class PublishEventRequest(BaseModel):    
     
-    ApplicationName:str = None
-    EventName:str = None
+    ApplicationName:str 
+    EventName:str
     EventVersion:Optional[str] = None
     EventReference:Optional[str] = None
     Content:Optional[str] = None
     Priority:Optional[int] = None
-    UniqueInteractionHeader: Optional[str] = None
-    SourceTraceMessageId: UUID4 = None
+    UniqueRequestHeader: Optional[str] = None
+    SourceTraceMessageId: Optional[UUID4] = None
     
-    def Create(self, 
-               application_name:str,
-               event_name:str,            
-               priority:Optional[int] = None,
-               content:Optional[str] = None,
-               event_reference:Optional[str] = None,
-               event_version:Optional[str] = None,
-               source_trace_message_id:Optional[UUID4] = None):       
-
-        self.ApplicationName = application_name
-        self.EventName = event_name
-        self.EventVersion = event_version
-        self.EventReference = event_reference
-        self.Content = content
-        self.Priority = priority
-        self.SourceTraceMessageId = source_trace_message_id
+    @staticmethod
+    def Create (
+            application_name:str,
+            event_name:str,            
+            priority:Optional[int] = None,
+            content:Optional[str] = None,
+            event_reference:Optional[str] = None,
+            event_version:Optional[str] = None,
+            source_trace_message_id:Optional[UUID4] = None,
+            unique_request_header:Optional[str] = None):     
         
-        return self
+        return PublishEventRequest(
+            ApplicationName = application_name,
+            EventName = event_name,
+            EventVersion = event_version,
+            EventReference = event_reference,
+            Content = content,
+            Priority = priority,
+            SourceTraceMessageId = source_trace_message_id,
+            UniqueRequestHeader=unique_request_header
+        )
+

@@ -1,14 +1,16 @@
-from typing import Optional, List
+from typing import List
 from pydantic import BaseModel
 from orchestrator_sdk.contracts.requests.webhooks.webhook_request import WebhookRequest
 
 class SyncWebhooksRequest(BaseModel):    
     
-    ApplicationName: str = None
-    Webhooks: List[WebhookRequest] = None
+    ApplicationName: str
+    Webhooks: List[WebhookRequest]
 
-    def Create(self, application_name:[str], webhooks:List[WebhookRequest]):
-        self.ApplicationName = application_name
-        self.Webhooks = webhooks
-
-        return self
+    @staticmethod
+    def Create(application_name:str, webhooks:List[WebhookRequest]):
+        
+        return SyncWebhooksRequest(
+            ApplicationName = application_name,
+            Webhooks = webhooks  
+        )

@@ -14,7 +14,7 @@ class MessageHistoryRepository(RepositoryBase):
         return (found != None)
     
     async def add_message(self, trace_message_id:uuid4):
-        new_history = MessageHistory().Create(trace_message_id=trace_message_id, completed_date=datetime.utcnow())       
+        new_history = MessageHistory.Create(trace_message_id=trace_message_id, completed_date=datetime.utcnow())       
         self.session.add(new_history)
 
     async def delete_old_message_history(self, retention_in_days:int):        
