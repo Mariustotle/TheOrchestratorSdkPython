@@ -12,15 +12,12 @@ class PublishEventRequest(BaseModel):
     EventReference:Optional[str] = None
     Content:Optional[str] = None
     Priority:Optional[int] = None
-    DeDuplicate:bool = None
     UniqueInteractionHeader: Optional[str] = None
-    
-    DeDuplicationDetails:Optional[DeDuplicationDetails] = None
     SourceTraceMessageId: UUID4 = None
     
     def Create(self, 
-               application_name:[str],
-               event_name:[str],            
+               application_name:str,
+               event_name:str,            
                priority:Optional[int] = None,
                content:Optional[str] = None,
                event_reference:Optional[str] = None,
@@ -35,10 +32,4 @@ class PublishEventRequest(BaseModel):
         self.Priority = priority
         self.SourceTraceMessageId = source_trace_message_id
         
-        return self        
-   
-    def AddDeDuplicationInstruction(self,
-            unique_interaction_header:Optional[str] = None):
-        
-        self.DeDuplicationDetails = DeDuplicationDetails().Create(de_duplicate=True, unique_interaction_header=unique_interaction_header)
         return self

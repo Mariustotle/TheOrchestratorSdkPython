@@ -9,8 +9,5 @@ class Endpoints():
     def get_sync_default_webhook_endpoint(self) -> str:
         return f'{self._base_url}/Application/SyncApplicationWebhooks'
     
-    def get_sync_event_subscriptions(self) -> str:
-        return f'{self._base_url}/Application/SyncApplicationEventSubscriptions'
-    
-    def get_sync_event_publishers(self) -> str:
-        return f'{self._base_url}/Application/SyncApplicationEventPublishers'
+    def get_sync_application_message_processors(self) -> str:
+        return f'{self._base_url}/Application/SyncApplicationMessageProcessors'

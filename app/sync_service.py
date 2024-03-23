@@ -3,10 +3,9 @@ from orchestrator_sdk.contracts.orchestrator_config import OrchestratorConfig
 from orchestrator_sdk.contracts.requests.application.sync_webhooks_request import SyncWebhooksRequest
 from orchestrator_sdk.contracts.requests.webhooks.webhook_request import WebhookRequest
 from orchestrator_sdk.contracts.endpoints import Endpoints
-from orchestrator_sdk.contracts.requests.events.publisher_request import PublisherRequest
-from orchestrator_sdk.contracts.requests.events.subscriber_request import SubscriberRequest
-from orchestrator_sdk.contracts.requests.application.sync_event_subscriptions import SyncEventSubscription
-from orchestrator_sdk.contracts.requests.application.sync_event_publishers import SyncEventPublishers
+from orchestrator_sdk.contracts.requests.application.application_sync_request import ApplicationSyncRequest
+from orchestrator_sdk.contracts.requests.events.event_publisher_registration import EventPublisherRegistration
+from orchestrator_sdk.contracts.requests.events.event_subscriber_registration import EventSubscriberRegistration
 from orchestrator_sdk.handlers.event_handlers.event_subscriber_base import EventSubscriberBase
 from orchestrator_sdk.handlers.event_handlers.event_publisher_base import EventPublisherBase
 from typing import Optional, List
@@ -43,25 +42,28 @@ class SyncService():
                     settings.default_callback_webhook.name, 
                     settings.application_name, 
                     settings.default_callback_webhook.url, 
-                    settings.default_callback_webhook.api_token)
+                    settings.default_callback_webhook.api_token)           
+                 
+            event_subscriptions = self.build_event_subscriptions(event_subscribers)        
+            event_publishers = self.build_event_subscriptions(event_publishers)
             
-            sync_event_subscriptions_endpoint = endpoints.get_sync_event_subscriptions()            
-            self.sync_event_subscriptions(settings.application_name,
-                    sync_event_subscriptions_endpoint,
-                    event_subscribers)
-            
-            sync_event_publishers_endpoint = endpoints.get_sync_event_publishers()            
-            self.sync_event_publishers(settings.application_name,
-                    sync_event_publishers_endpoint,
-                    event_publishers)            
+            sync_application_message_processors_endpoint = endpoints.get_sync_application_message_processors()
+            self.sync_applicaton_message_processors(
+                    endpoint=sync_application_message_processors_endpoint,
+                    application_name=settings.application_name,
+                    event_subscribers=event_subscriptions,
+                    event_publishers=event_publishers)     
             
             self.SuccessfullyInitiatlized = True
             
         except Exception as ex:
-            logger.error(f"Oops! {ex.__class__} occurred. Details: {ex}")   
+            logger.error(f"Oops! {ex.__class__} occurred. Details: {ex}")
+            
+            return False
     
     def associate_application(self):
         print('Application Registered')
+    
     
     def sync_default_webhook(self, endpoint:str, webhook_name:str, application_name:str, webhook_url:str, webhook_token:str) -> bool:
         
@@ -81,50 +83,64 @@ class SyncService():
         except Exception as ex:
             logger.error(f"Oops! {ex.__class__} occurred. Details: {ex}")
             return False
+ 
         
-   
-    def sync_event_subscriptions(self, application_name:str, endpoint:str, event_subscribers:List[EventSubscriberBase]):
-        try:            
-            subscriptions = []
+
+    def sync_applicaton_message_processors(self, endpoint:str, application_name:str, event_publishers:List[EventPublisherRegistration],
+                                           event_subscribers:List[EventSubscriberRegistration]) -> bool:
+        
+       	try:            
+            application_sync = ApplicationSyncRequest().Create(
+                application_name=application_name, event_publishers=event_publishers, event_subscribers=event_subscribers)      
+           
+            response = self._post(application_sync, endpoint)
             
-            for handler in event_subscribers:
-                subscription = SubscriberRequest().Create(
-                    dispatcher=handler.processor_name, 
-                    event_name=handler.event_name, 
-                    webhook_name=handler.process_webhook_name,
-                    event_version=handler.request_version)
-                subscriptions.append(subscription)                
-                
-            sync_request = SyncEventSubscription().Create(application_name=application_name, subscriptions=subscriptions)
+            logger.info('Default webhook details syncronized')
             
-            self._post(sync_request, endpoint)
+            if response.status_code != 200:
+                raise Exception(f'Request failed with status code [{response.status_code}] for [{application_name}]. Details [{response.text}]') 
             
-            logger.info('Event Subscriptions Syncronized')
             return True       
         
         except Exception as ex:
             logger.error(f"Oops! {ex.__class__} occurred. Details: {ex}")
             return False
+    
+  
+    def build_event_subscriptions(self, event_subscribers:List[EventSubscriberBase]):
+        subscriptions = []
         
-    def sync_event_publishers(self, application_name:str, endpoint:str, event_publishers:List[EventPublisherBase]):
         try:            
-            publishers = []
+                        
+            for handler in event_subscribers:
+                subscription = EventSubscriberRegistration().Create(
+                    dispatcher=handler.processor_name, 
+                    event_name=handler.event_name, 
+                    webhook_name=handler.process_webhook_name,
+                    event_version=handler.request_version)
+                subscriptions.append(subscription)     
+                           
+            return subscriptions       
+        
+        except Exception as ex:
+            logger.error(f"Oops! {ex.__class__} occurred. Details: {ex}")
+            return []
+        
+    def build_event_publishers(self, event_publishers:List[EventPublisherBase]):
+        publishers = []
+        
+        try:            
             
             for handler in event_publishers:
-                publisher = PublisherRequest().Create(
+                publisher = EventPublisherRegistration().Create(
                     event_name=handler.event_name, 
                     jason_schema=None, # Do this dynamically from the DTO
                     latest_version=handler.request_version)
                 
                 publishers.append(publisher)                
                 
-            sync_request = SyncEventPublishers().Create(application_name=application_name, publishers=publishers)
-            
-            self._post(sync_request, endpoint)
-            
-            logger.info('Event Publishers Syncronized')
-            return True       
+            return publishers       
         
         except Exception as ex:
             logger.error(f"Oops! {ex.__class__} occurred. Details: {ex}")
-            return False
+            return []
