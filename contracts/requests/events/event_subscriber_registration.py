@@ -11,12 +11,13 @@ class EventSubscriberRegistration(BaseModel):
     Dispatcher: Optional[str] = None    
     MaxConcurrency: Optional[int] = None
 
-    def Create(self, event_name:str, dispatcher:Optional[str], webhook_name:str, 
+    def Create(event_name:str, webhook_name:str, dispatcher:Optional[str],  
                event_version:Optional[str] = None, max_concurrency: Optional[int] = None):
-        self.EventName = event_name
-        self.Dispatcher = dispatcher
-        self.WebhookName = webhook_name
-        self.EventVersion = event_version
-        self.MaxConcurrency = max_concurrency
         
-        return self
+        return EventSubscriberRegistration (
+            EventName = event_name,
+            Dispatcher = dispatcher,
+            WebhookName = webhook_name,
+            EventVersion = event_version,
+            MaxConcurrency = max_concurrency
+        )

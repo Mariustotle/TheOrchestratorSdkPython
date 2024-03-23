@@ -45,7 +45,7 @@ class SyncService():
                     settings.default_callback_webhook.api_token)           
                  
             event_subscriptions = self.build_event_subscriptions(event_subscribers)        
-            event_publishers = self.build_event_subscriptions(event_publishers)
+            event_publishers = self.build_event_publishers(event_publishers)
             
             sync_application_message_processors_endpoint = endpoints.get_sync_application_message_processors()
             self.sync_applicaton_message_processors(
@@ -90,12 +90,15 @@ class SyncService():
                                            event_subscribers:List[EventSubscriberRegistration]) -> bool:
         
        	try:            
-            application_sync = ApplicationSyncRequest().Create(
+            application_sync = ApplicationSyncRequest.Create(
                 application_name=application_name, event_publishers=event_publishers, event_subscribers=event_subscribers)      
            
             response = self._post(application_sync, endpoint)
             
-            logger.info('Default webhook details syncronized')
+            eventPublisherCount = len(event_publishers) if event_publishers != None else 0
+            eventSubscriberCount = len(event_subscribers) if event_subscribers != None else 0
+            
+            logger.info(f'Message Proceessors Syncronized. Event Publishers [{eventPublisherCount}], Event Subscribers [{eventSubscriberCount}], Command Raisers [{0}], Command Processors [{0}]')
             
             if response.status_code != 200:
                 raise Exception(f'Request failed with status code [{response.status_code}] for [{application_name}]. Details [{response.text}]') 
@@ -113,7 +116,7 @@ class SyncService():
         try:            
                         
             for handler in event_subscribers:
-                subscription = EventSubscriberRegistration().Create(
+                subscription = EventSubscriberRegistration.Create(
                     dispatcher=handler.processor_name, 
                     event_name=handler.event_name, 
                     webhook_name=handler.process_webhook_name,
@@ -132,8 +135,9 @@ class SyncService():
         try:            
             
             for handler in event_publishers:
-                publisher = EventPublisherRegistration().Create(
+                publisher = EventPublisherRegistration.Create(
                     event_name=handler.event_name, 
+                    processing_type=handler.processing_type,
                     jason_schema=None, # Do this dynamically from the DTO
                     latest_version=handler.request_version)
                 

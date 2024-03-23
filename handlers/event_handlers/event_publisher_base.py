@@ -6,6 +6,7 @@ from orchestrator_sdk.seedworks.logger import Logger
 from orchestrator_sdk.contracts.requests.events.publish_event_request import PublishEventRequest
 from orchestrator_sdk.callback_context import CallbackContext
 from orchestrator_sdk.contracts.publishing.publish_envelope import PublishEnvelope
+from orchestrator_sdk.contracts.types.process_type import ProcessType
 
 logger = Logger.get_instance()
 
@@ -18,6 +19,7 @@ class EventPublisherBase(ABC, Generic[T]):
     application_name:str = None
     publish_url:str = None
     processor_name:str = None
+    processing_type:ProcessType = None
     publish_path:str = '/Events/PublishEvent' 
  
    
@@ -32,7 +34,8 @@ class EventPublisherBase(ABC, Generic[T]):
         self.request_version = request_version       
         self.application_name = orchestrator_settings.application_name        
         self.processor_name = processor_name
-        self.event_name = event_name      
+        self.event_name = event_name
+        self.processing_type = ProcessType.Concurrent
    
     def build_request(self, request_object:T, reference:Optional[str] = None, priority:Optional[int] = None) -> PublishEventRequest:        
         serialized_payload = request_object.json()
