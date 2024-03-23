@@ -8,25 +8,21 @@ from uuid import uuid4
 from typing import List, Optional
 from datetime import datetime, timedelta
 
-class ReadyForSubmissionBatch:
+class ReadyForSubmissionBatch():
     messages_ready:int
     messages_not_completed:int
     messages_needing_intervention:int
-    messages:Optional[List[MessageOutboxEntity]]
+    messages:List[MessageOutboxEntity]
     
-    @staticmethod
-    def Create(
-            messages_ready:int,
+    def __init__(self, messages_ready:int,
             messages_not_completed:int,
-            message_needing_intervention:int,
-            messages:Optional[List[MessageOutboxEntity]] = None):
+            messages_needing_intervention:int,
+            messages:List[MessageOutboxEntity]) -> None:
         
-        return ReadyForSubmissionBatch(
-            messages_ready = messages_ready,
-            messages_needing_intervention = message_needing_intervention,
-            messages_not_completed = messages_not_completed,
-            messages = messages if messages is not None else []             
-        )
+        self.messages_ready = messages_ready
+        self.messages_not_completed =messages_not_completed
+        self.messages_needing_intervention = messages_needing_intervention
+        self.messages = messages  
 
 
 class MessageOutboxRepository(RepositoryBase):
@@ -108,8 +104,11 @@ class MessageOutboxRepository(RepositoryBase):
             .order_by(MessageOutboxEntity.priority.desc(), MessageOutboxEntity.created_date)\
             .limit(batch_size)\
             .all()
+            
+        messages = next_messages if next_messages is not None else List[MessageOutboxEntity]
         
-        bacth_result = ReadyForSubmissionBatch.Create(messages_ready=ready_count, messages_not_completed=not_completed_count, messages=next_messages, message_needing_intervention=need_intervention_count)
+        bacth_result = ReadyForSubmissionBatch(messages_ready=ready_count, messages_not_completed=not_completed_count,
+             messages_needing_intervention=need_intervention_count, messages=messages)
         
         return bacth_result
     
