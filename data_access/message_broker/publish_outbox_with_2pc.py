@@ -13,7 +13,7 @@ class PublishOutboxWith2PC(MessageBrokerPublisherInterface):
         if (pyprop == None or len(pyprop) < 1):
             return None
             
-        return pyprop[0]      
+        return pyprop[0]
     
     async def publish(self, publish_instruction:PublishEnvelope, unit_of_work:Optional[UnitOfWork] = None):
         try:                   

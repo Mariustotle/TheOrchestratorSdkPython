@@ -12,7 +12,7 @@ logger = Logger.get_instance()
 T = TypeVar('T')
 
 class CommandRaiserBase(ABC, Generic[T]): 
-    publish_path:str = '/Commands/RegisterConcurrentCommand' 
+    publish_path:str = '/Commands/RaiseCommand' 
        
     command_name:str
     request_type:type
