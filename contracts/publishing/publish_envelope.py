@@ -1,5 +1,7 @@
+import uuid
+ 
 from typing import Optional
-from pydantic import BaseModel
+from pydantic import BaseModel, UUID4
 
 class PublishEnvelope(BaseModel):
     endpoint:str
@@ -8,7 +10,7 @@ class PublishEnvelope(BaseModel):
     publish_request:Optional[object] = None
     source_trace_message_id:Optional[str] = None
     priority:Optional[int] = None    
-    
+
     ## TODO: Remove trace data from payload into envolope level data to be passed in the header not body    
     
     @staticmethod

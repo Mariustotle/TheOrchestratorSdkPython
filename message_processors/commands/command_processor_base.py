@@ -50,7 +50,18 @@ class CommandProcessorBase(ABC, Generic[T]):
             
     async def process(self, request: T, command_name:str, reference:Optional[str], unit_of_work:Optional[UnitOfWork] = None) -> None:
         if self.command_name.lower() != command_name.lower():
-            raise ValueError(f'Trying to process command [{command_name}] in handler [{self.processor_name}] but it is not a supported.')
-        return await self._process(request, command_name, reference, unit_of_work)
+            raise ValueError(f'Trying to process command [{command_name}] in handler [{self.processor_name}] but it is not a supported.')        
+        
+        try:
+            return await self._process(request, command_name, reference, unit_of_work)
+        
+        except Exception as ex:
+            logger.error(f"Oops! {ex.__class__} occurred. Details: {ex}")  
+            raise # re-throw after writing error to screen
+            
+        
+        
+        
+        
     
 

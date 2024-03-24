@@ -1,5 +1,7 @@
+import uuid
+
 from typing import Optional
-from pydantic import BaseModel, UUID4
+from pydantic import BaseModel
 
 class PublishEventRequest(BaseModel):    
     
@@ -10,7 +12,7 @@ class PublishEventRequest(BaseModel):
     Content:Optional[str] = None
     Priority:Optional[int] = None
     UniqueRequestHeader: Optional[str] = None
-    SourceTraceMessageId: Optional[UUID4] = None
+    SourceTraceMessageId: Optional[str] = None
     
     @staticmethod
     def Create (
@@ -20,7 +22,7 @@ class PublishEventRequest(BaseModel):
             content:Optional[str] = None,
             event_reference:Optional[str] = None,
             event_version:Optional[str] = None,
-            source_trace_message_id:Optional[UUID4] = None,
+            source_trace_message_id:Optional[str] = None,
             unique_request_header:Optional[str] = None):     
         
         return PublishEventRequest(
