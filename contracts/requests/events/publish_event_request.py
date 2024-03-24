@@ -22,7 +22,7 @@ class PublishEventRequest(BaseModel):
             content:Optional[str] = None,
             event_reference:Optional[str] = None,
             event_version:Optional[str] = None,
-            source_trace_message_id:Optional[str] = None,
+            source_message_trace_id:Optional[str] = None,
             unique_request_header:Optional[str] = None):     
         
         return PublishEventRequest(
@@ -32,7 +32,7 @@ class PublishEventRequest(BaseModel):
             EventReference = event_reference,
             Content = content,
             Priority = priority,
-            SourceTraceMessageId = source_trace_message_id,
+            SourceTraceMessageId = source_message_trace_id,
             UniqueRequestHeader=unique_request_header
         )
 

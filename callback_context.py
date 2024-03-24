@@ -9,7 +9,8 @@ class CallbackContext:
     initialized: ContextVar[bool] = ContextVar("initialized")
     account_id: ContextVar[str] = ContextVar("account_id")
     group_trace_key: ContextVar[str] = ContextVar("group_trace_key")
-    trace_message_id: ContextVar[str] = ContextVar("trace_message_id")
+    message_id: ContextVar[str] = ContextVar("message_id")
+    message_trace_id: ContextVar[str] = ContextVar("message_trace_id")
     message_name: ContextVar[str] = ContextVar("message_name")
     message_type: ContextVar[str] = ContextVar("message_type")  
     dispatcher: ContextVar[str] = ContextVar("dispatcher")
@@ -18,13 +19,14 @@ class CallbackContext:
     application_name: ContextVar[str] = ContextVar("application_name")
     priority: ContextVar[int] = ContextVar("priority")
 
-    def __init__(self, account_id, application_name, trace_message_id, group_trace_key, dispatcher, message_name, message_type, reference, action, priority = None): 
+    def __init__(self, account_id, application_name, message_id, message_trace_id, group_trace_key, dispatcher, message_name, message_type, reference, action, priority = None): 
 
         self._initialized_token = self.initialized.set(True)        
         self._account_id_token = self.account_id.set(account_id)
         self._application_name_token = self.application_name.set(application_name)
-        self._trace_message_id_token = self.trace_message_id.set(trace_message_id)
+        self._message_trace_id_token = self.message_trace_id.set(message_trace_id)
         self._message_name_token = self.message_name.set(message_name)
+        self._message_id_token = self.message_id.set(message_id)
         self._message_type_token = self.message_type.set(message_type)
         self._group_trace_key_token = self.group_trace_key.set(group_trace_key)
         self._dispatcher_token = self.dispatcher.set(dispatcher)
@@ -53,7 +55,8 @@ class CallbackContext:
         self.initialized.reset(self._initialized_token)
         self.account_id.reset(self._account_id_token)
         self.application_name.reset(self._application_name_token)
-        self.trace_message_id.reset(self._trace_message_id_token)
+        self.message_trace_id.reset(self._message_trace_id_token)
+        self.message_id.reset(self._message_id_token)
         self.message_name.reset(self._message_name_token)
         self.message_type.reset(self._message_type_token)
         self.group_trace_key.reset(self._group_trace_key_token)

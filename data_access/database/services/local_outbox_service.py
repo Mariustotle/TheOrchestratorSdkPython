@@ -1,5 +1,7 @@
 import asyncio
+
 from typing import Optional
+from datetime import datetime
 
 from orchestrator_sdk.data_access.database.repositories.message_outbox_repository import MessageOutboxRepository, ReadyForSubmissionBatch
 from orchestrator_sdk.data_access.database.message_database import MessageDatabase
@@ -20,7 +22,7 @@ class LocalOutboxService:
     
     WAIT_TIME_IN_SECONDS:int = 30
     BATCH_SIZE:int = 40
-    RETENTION_TIME_IN_DAYS:int = 30
+    RETENTION_TIME_IN_DAYS:int = 3
     
     def __init__(self, message_database:MessageDatabase): 
         self.is_busy = False
@@ -72,18 +74,21 @@ class LocalOutboxService:
                     publish_request = message.publish_request_object
                     
                     try:
-                                            
+                            message.process_count += 1
+                            session.commit()                    
+                                    
                             envelope = PublishEnvelope.Create(
                                     endpoint=message.endpoint,
                                     publish_request=publish_request,
                                     handler_name=message.handler_name,
-                                    source_trace_message_id=message.source_trace_message_id,
+                                    source_message_trace_id=message.source_message_trace_id,
                                     priority=message.priority)
                                 
                             await api_submission.submit(envelope)
                         
                             message.status = OutboxStatus.Published.name
                             message.is_completed = True
+                            message.published_date = datetime.utcnow()
                             session.commit()
                             success_count += 1
                     

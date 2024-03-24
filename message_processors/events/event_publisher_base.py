@@ -50,21 +50,21 @@ class EventPublisherBase(ABC, Generic[T]):
     def build_request(self, request_object:T, reference:Optional[str] = None, priority:Optional[int] = None) -> PublishEventRequest:        
         serialized_payload = request_object.json()
         
-        source_trace_message_id = None
+        source_message_trace_id = None
         
         if CallbackContext.is_available():
-            source_trace_message_id = CallbackContext.trace_message_id.get()
+            source_message_trace_id = CallbackContext.message_trace_id.get()
         
         publish_request:PublishEventRequest = PublishEventRequest.Create(
             application_name=self.application_name, event_name=self.event_name, priority=priority,
-            event_version=self.latest_version, event_reference=reference, content=serialized_payload, source_trace_message_id=source_trace_message_id)
+            event_version=self.latest_version, event_reference=reference, content=serialized_payload, source_message_trace_id=source_message_trace_id)
             
         envelope = PublishEnvelope.Create(
             publish_request=publish_request,
             endpoint=self.publish_url,
             handler_name=self.processor_name,
             reference=reference,
-            source_trace_message_id=source_trace_message_id,
+            source_message_trace_id=source_message_trace_id,
             priority=priority)
 
         # Set DeDuplicate Details after building the base request using request.AddDeDuplicationInstruction()

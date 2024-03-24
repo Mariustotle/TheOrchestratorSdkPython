@@ -7,15 +7,15 @@ from uuid import uuid4
 class MessageHistory(MessageEntityBase):
     __tablename__ = 'MessageHistory'
 
-    trace_message_id = Column(String, nullable=False)
+    message_id = Column(String, nullable=False)
     completed_date = Column(DATETIME, nullable=False)    
    
     @staticmethod
     def Create( 
-            trace_message_id:uuid4,
+            message_id:uuid4,
             completed_date:datetime):
         
         return MessageHistory(                
-            trace_message_id = str(trace_message_id),
+            message_id = str(message_id),
             completed_date = completed_date
         )

@@ -5,7 +5,7 @@ from orchestrator_sdk.data_access.database.message_entity_base import MessageEnt
 from datetime import datetime
 
 class MessageOutboxEntity(MessageEntityBase):
-    __tablename__ = 'MessagesOutbox'
+    __tablename__ = 'MessageOutbox'
 
     transaction_reference = Column(String, nullable=False)
     created_date = Column(DATETIME, nullable=False)
@@ -14,7 +14,7 @@ class MessageOutboxEntity(MessageEntityBase):
     status = Column(String, nullable=False)
     is_completed = Column(String, nullable=False)
     handler_name = Column(String, nullable=False)
-    source_trace_message_id = Column(String, nullable=True)
+    source_message_trace_id = Column(String, nullable=True)
     process_count = Column(Integer, nullable=False)
     eligible_after = Column(DATETIME, nullable=True)
     endpoint = Column(String, nullable=False)
@@ -25,14 +25,14 @@ class MessageOutboxEntity(MessageEntityBase):
             publish_request_object:object,
             endpoint:str,
             handler_name:str,
-            source_trace_message_id:str,
+            source_message_trace_id:str,
             priority:int):
         
         return MessageOutboxEntity(
             publish_request_object = publish_request_object.json() if publish_request_object is not None else None,
             status = str(OutboxStatus.Pending.name),
             handler_name = handler_name,
-            source_trace_message_id = source_trace_message_id,
+            source_message_trace_id = source_message_trace_id,
             process_count = 0,
             eligible_after = None,
             created_date = datetime.utcnow(),
