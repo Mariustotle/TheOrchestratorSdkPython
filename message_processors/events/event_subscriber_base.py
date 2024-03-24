@@ -1,7 +1,6 @@
 from abc import ABC, abstractmethod
 from typing import TypeVar, Generic, Optional
 from orchestrator_sdk.seedworks.logger import Logger
-from orchestrator_sdk.contracts.types.processing_type import ProcessingType
 
 from orchestrator_sdk.seedworks.config_reader import ConfigReader
 from orchestrator_sdk.contracts.orchestrator_config import OrchestratorConfig
@@ -17,12 +16,11 @@ class EventSubscriberBase(ABC, Generic[T]):
     processor_name:str
     process_webhook_name:str
     request_type:type
-    application_name:str
-    process_type:ProcessingType
+    application_name:str    
     event_version:Optional[str] = None
     max_concurrency_limit: Optional[int] = None
    
-    def __init__(self, processor_name:str, event_name:str, request_type:type, process_type:Optional[ProcessingType] = ProcessingType.Concurrent,
+    def __init__(self, processor_name:str, event_name:str, request_type:type, 
             event_version:Optional[str] = None, max_concurrency_limit:Optional[int] = None) -> None:
         
         super().__init__()       
@@ -33,7 +31,6 @@ class EventSubscriberBase(ABC, Generic[T]):
         self.request_type = request_type
         self.event_version = event_version
         self.event_name = event_name
-        self.process_type = process_type
 
         self.process_webhook_name = orchestrator_settings.default_callback_webhook.name
         self.application_name = orchestrator_settings.application_name

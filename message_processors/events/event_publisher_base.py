@@ -20,7 +20,8 @@ class EventPublisherBase(ABC, Generic[T]):
     application_name:str
     publish_url:str
     processor_name:str
-    processing_type:ProcessingType
+    processing_type:ProcessingType    
+    
     latest_version:Optional[str] = None
     de_duplication_enabled:Optional[bool] = None
     allow_publishing_without_subscribers:Optional[bool] = None
@@ -28,6 +29,7 @@ class EventPublisherBase(ABC, Generic[T]):
    
     def __init__(self, processor_name:str, event_name:str, request_type:type, latest_version:Optional[str] = None,
                  de_duplication_enabled:Optional[bool] = None, allow_publishing_without_subscribers:Optional[bool] = None,
+                 processing_type:Optional[ProcessingType] = ProcessingType.Concurrent,
                  require_new_subscriber_approval:Optional[bool] = None) -> None:
         super().__init__()
         
@@ -40,7 +42,7 @@ class EventPublisherBase(ABC, Generic[T]):
         self.application_name = orchestrator_settings.application_name        
         self.processor_name = processor_name
         self.event_name = event_name
-        self.processing_type = ProcessingType.Concurrent
+        self.processing_type = processing_type
         self.de_duplication_enabled = de_duplication_enabled
         self.allow_publishing_without_subscribers = allow_publishing_without_subscribers
         self.require_new_subscriber_approval = require_new_subscriber_approval
@@ -54,7 +56,7 @@ class EventPublisherBase(ABC, Generic[T]):
             source_trace_message_id = CallbackContext.trace_message_id.get()
         
         publish_request:PublishEventRequest = PublishEventRequest.Create(
-            application_name=self.application_name, event_name=self.event_name, priority=priority, 
+            application_name=self.application_name, event_name=self.event_name, priority=priority,
             event_version=self.latest_version, event_reference=reference, content=serialized_payload, source_trace_message_id=source_trace_message_id)
             
         envelope = PublishEnvelope.Create(
