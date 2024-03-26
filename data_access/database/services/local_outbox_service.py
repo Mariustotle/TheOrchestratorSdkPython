@@ -95,11 +95,15 @@ class LocalOutboxService:
                     except RequestsConnectionError:
                             error_occurred = True
                             logger.warn(f'Unable to connect to orchestrator server to publish the [{len(batch_result.messages)}] messages waiting to be sent. Will delay retry.')
+                            logger.info(f'MESSAGE DB POOL STATUS: [{self.message_database.db_engine.pool.status()}]')
+                            session.rollback()
                             break
                         
                     except Exception as ex:
                             error_occurred = True        
                             logger.error(f"Oops! {ex.__class__} occurred. Details: {ex}")
+                            logger.info(f'MESSAGE DB POOL STATUS: [{self.message_database.db_engine.pool.status()}]')
+                            session.rollback()
                             raise
                     
             except Exception as ex:   
