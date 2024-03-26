@@ -21,7 +21,7 @@ class LocalOutboxService:
     remaining_count:Optional[int] = None
     
     WAIT_TIME_IN_SECONDS:int = 30
-    BATCH_SIZE:int = 50
+    BATCH_SIZE:int = 30
     RETENTION_TIME_IN_DAYS:int = 3
     
     def __init__(self, message_database:MessageDatabase): 
@@ -118,7 +118,7 @@ class LocalOutboxService:
                 previous_batch_did_not_publish = previous_batch_remaining != None and remaining == previous_batch_remaining
                 add_extra_delay = error_occured or no_remaining_items_are_ready or previous_batch_did_not_publish                
                 
-        delay:int = self.WAIT_TIME_IN_SECONDS if add_extra_delay else 2
+        delay:int = self.WAIT_TIME_IN_SECONDS if add_extra_delay else 1
         await asyncio.sleep(delay)
         
         asyncio.create_task(self.process_next_batch())
