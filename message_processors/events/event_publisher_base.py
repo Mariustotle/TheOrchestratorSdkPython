@@ -13,8 +13,8 @@ logger = Logger.get_instance()
 T = TypeVar('T')
 
 class EventPublisherBase(ABC, Generic[T]):  
-    publish_path:str = '/Events/PublishEvent' 
-      
+    publish_path:str = '/Events/PublishEvent'     
+    
     event_name:str
     request_type:type   
     application_name:str
@@ -46,27 +46,32 @@ class EventPublisherBase(ABC, Generic[T]):
         self.de_duplication_enabled = de_duplication_enabled
         self.allow_publishing_without_subscribers = allow_publishing_without_subscribers
         self.require_new_subscriber_approval = require_new_subscriber_approval
+        
+    def build_unique_header(self, request_object:T) -> Optional[str]:
+        return None
    
     def build_request(self, request_object:T, reference:Optional[str] = None, priority:Optional[int] = None) -> PublishEventRequest:        
         serialized_payload = request_object.json()
         
-        source_message_trace_id = None
+        unique_header = self.build_unique_header(request_object)   
         
+        source_message_trace_id = None        
         if CallbackContext.is_available():
             source_message_trace_id = CallbackContext.message_trace_id.get()
         
         publish_request:PublishEventRequest = PublishEventRequest.Create(
-            application_name=self.application_name, event_name=self.event_name, priority=priority,
-            event_version=self.latest_version, event_reference=reference, content=serialized_payload, source_message_trace_id=source_message_trace_id)
+            application_name=self.application_name, event_name=self.event_name, priority=priority, event_version=self.latest_version, 
+            event_reference=reference, content=serialized_payload, source_message_trace_id=source_message_trace_id, unique_request_header=unique_header)
             
         envelope = PublishEnvelope.Create(
             publish_request=publish_request,
             endpoint=self.publish_url,
+            message_name=self.event_name,
             handler_name=self.processor_name,
             reference=reference,
             source_message_trace_id=source_message_trace_id,
-            priority=priority)
-
-        # Set DeDuplicate Details after building the base request using request.AddDeDuplicationInstruction()
-        
+            priority=priority,
+            de_duplication_enabled=self.de_duplication_enabled,
+            unique_header=unique_header)
+       
         return envelope

@@ -2,6 +2,7 @@ from orchestrator_sdk.data_access.database.entities.message_outbox_entity import
 from orchestrator_sdk.contracts.local_persistence.message_outbox_schema import MessageOutboxSchema
 from orchestrator_sdk.data_access.database.outbox_status import OutboxStatus
 from orchestrator_sdk.data_access.database.repository_base import RepositoryBase
+from sqlalchemy import func
 
 from sqlalchemy.orm import Session
 from uuid import uuid4
@@ -90,15 +91,52 @@ class MessageOutboxRepository(RepositoryBase):
         message.is_completed = False
         
         self.session.add(message)
+        
+    async def remove_duplicates_pending_submission(self):        
+        subquery = (
+            self.session.query(
+                MessageOutboxEntity.message_name,
+                MessageOutboxEntity.unique_header,
+                MessageOutboxEntity.id,
+                func.max(MessageOutboxEntity.created_date).label('max_created_date')
+            )
+            .filter_by(is_completed=False, de_duplication_enabled=True)
+            .group_by(
+                MessageOutboxEntity.message_name,
+                MessageOutboxEntity.unique_header,
+                MessageOutboxEntity.transaction_reference
+            )
+            .subquery()
+        )
+
+        duplicates = (
+            self.session.query(MessageOutboxEntity)
+            .join(
+                subquery,
+                (MessageOutboxEntity.message_name == subquery.c.message_name) &
+                (MessageOutboxEntity.unique_header == subquery.c.unique_header) &
+                (MessageOutboxEntity.id == subquery.c.id) &
+                (MessageOutboxEntity.created_date != subquery.c.max_created_date)
+            )
+            .filter_by(is_completed=False, de_duplication_enabled=True)
+            .all()
+        )
+
+        for duplicate in duplicates:
+            duplicate.status = OutboxStatus.Duplicate.name
+            duplicate.is_completed = True
+        self.session.commit()
+                
 
     async def get_next_messages(self, batch_size: int) -> ReadyForSubmissionBatch:
         
         time_threshold = datetime.utcnow() - timedelta(hours=1)
         
-        ready_count = self.session.query(MessageOutboxEntity).filter(MessageOutboxEntity.status == OutboxStatus.Ready.name).count()
+        ready_count = self.session.query(MessageOutboxEntity).filter(MessageOutboxEntity.status == OutboxStatus.Ready.name).count() # Add and is eligble
         not_completed_count = self.session.query(MessageOutboxEntity).filter(MessageOutboxEntity.is_completed == False).count()
-        need_intervention_count = self.session.query(MessageOutboxEntity).filter(MessageOutboxEntity.status == OutboxStatus.Preperation.name).count() # MessageOutboxEntity.created_date < time_threshold and 
+        need_intervention_count = self.session.query(MessageOutboxEntity).filter(MessageOutboxEntity.status == OutboxStatus.Preperation.name).count() 
         
+        # Add to filter, eligble is None or eligble < datetime.utcnow()
         next_messages = self.session.query(MessageOutboxEntity)\
             .filter(MessageOutboxEntity.status == OutboxStatus.Ready.name)\
             .order_by(MessageOutboxEntity.priority.desc(), MessageOutboxEntity.created_date)\

@@ -62,7 +62,9 @@ class LocalOutboxService:
         with self.message_database.db_session_maker() as session:
         
             try:           
-                outbox_repo = MessageOutboxRepository(session, None)           
+                outbox_repo = MessageOutboxRepository(session, None)     
+                
+                # await outbox_repo.remove_duplicates_pending_submission()      
                 batch_result:ReadyForSubmissionBatch = await outbox_repo.get_next_messages(batch_size=self.BATCH_SIZE)               
                 logger.info(f'OUTBOX Queue Summary >>>> Remaining [{len(batch_result.messages)}/{batch_result.messages_not_completed}] Ready [{batch_result.messages_ready}] Intervention [{batch_result.messages_needing_intervention}] <<<<')
                 
@@ -82,7 +84,9 @@ class LocalOutboxService:
                                     publish_request=publish_request,
                                     handler_name=message.handler_name,
                                     source_message_trace_id=message.source_message_trace_id,
-                                    priority=message.priority)
+                                    priority=message.priority, message_name=message.message_name,
+                                    de_duplication_enabled=message.de_duplication_enabled,
+                                    unique_header=message.unique_header)
                                 
                             await api_submission.submit(envelope)
                         

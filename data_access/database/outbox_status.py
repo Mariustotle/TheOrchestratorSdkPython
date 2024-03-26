@@ -9,3 +9,4 @@ class OutboxStatus(Enum):
     Published = 5
     Preperation = 6
     Rollback = 7
+    Duplicate = 8
