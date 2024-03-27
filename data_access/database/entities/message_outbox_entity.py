@@ -19,7 +19,7 @@ class MessageOutboxEntity(MessageEntityBase):
     handler_name = Column(String, nullable=False)
     de_duplication_enabled = Column(Boolean, nullable=False)
     unique_header = Column(String, nullable=True)
-    source_message_trace_id = Column(String, nullable=True)
+    source_trace_message_id = Column(String, nullable=True)
     process_count = Column(Integer, nullable=False)
     eligible_after = Column(DATETIME, nullable=True)
     endpoint = Column(String, nullable=False)
@@ -31,7 +31,7 @@ class MessageOutboxEntity(MessageEntityBase):
             endpoint:str,
             handler_name:str,
             message_name:str,
-            source_message_trace_id:str,
+            source_trace_message_id:str,
             de_duplication_enabled:bool,
             unique_header:str,
             priority:Optional[int],
@@ -42,7 +42,7 @@ class MessageOutboxEntity(MessageEntityBase):
             status = str(OutboxStatus.Pending.name),
             message_name = message_name,
             handler_name = handler_name,
-            source_message_trace_id = source_message_trace_id,
+            source_trace_message_id = source_trace_message_id,
             process_count = 0,
             de_duplication_enabled = de_duplication_enabled,
             unique_header = unique_header,

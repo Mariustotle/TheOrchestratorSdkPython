@@ -83,7 +83,7 @@ class LocalOutboxService:
                                     endpoint=message.endpoint,
                                     publish_request=publish_request,
                                     handler_name=message.handler_name,
-                                    source_message_trace_id=message.source_message_trace_id,
+                                    source_trace_message_id=message.source_trace_message_id,
                                     priority=message.priority, message_name=message.message_name,
                                     de_duplication_enabled=message.de_duplication_enabled,
                                     unique_header=message.unique_header)

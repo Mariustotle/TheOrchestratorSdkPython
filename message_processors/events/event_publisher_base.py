@@ -55,13 +55,13 @@ class EventPublisherBase(ABC, Generic[T]):
         
         unique_header = self.build_unique_header(request_object)   
         
-        source_message_trace_id = None        
+        source_trace_message_id = None        
         if CallbackContext.is_available():
-            source_message_trace_id = CallbackContext.message_trace_id.get()
+            source_trace_message_id = CallbackContext.trace_message_id.get()
         
         publish_request:PublishEventRequest = PublishEventRequest.Create(
             application_name=self.application_name, event_name=self.event_name, priority=priority, event_version=self.latest_version, 
-            event_reference=reference, content=serialized_payload, source_message_trace_id=source_message_trace_id, unique_request_header=unique_header)
+            event_reference=reference, content=serialized_payload, source_trace_message_id=source_trace_message_id, unique_request_header=unique_header)
             
         envelope = PublishEnvelope.Create(
             publish_request=publish_request,
@@ -69,7 +69,7 @@ class EventPublisherBase(ABC, Generic[T]):
             message_name=self.event_name,
             handler_name=self.processor_name,
             reference=reference,
-            source_message_trace_id=source_message_trace_id,
+            source_trace_message_id=source_trace_message_id,
             priority=priority,
             de_duplication_enabled=self.de_duplication_enabled,
             unique_header=unique_header)

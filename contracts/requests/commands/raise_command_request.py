@@ -22,7 +22,7 @@ class RaiseCommandRequest(BaseModel):
             command_reference: Optional[str] = None,
             content: Optional[str] = None,
             priority: Optional[int] = None,
-            source_message_trace_id: Optional[str] = None,
+            source_trace_message_id: Optional[str] = None,
             unique_request_header: Optional[str] = None): 
         
         return RaiseCommandRequest(
@@ -32,6 +32,6 @@ class RaiseCommandRequest(BaseModel):
             CommandReference = command_reference,
             Content = content,
             Priority = priority,
-            SourceTraceMessageId = source_message_trace_id,
+            SourceTraceMessageId = source_trace_message_id,
             UniqueRequestHeader=unique_request_header            
         )
