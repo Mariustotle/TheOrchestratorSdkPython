@@ -135,6 +135,7 @@ class SyncService():
                     json_schema = None, # Do this dynamically from the DTO
                     de_duplication_enabled = handler.de_duplication_enabled,
                     items_remaining_at_source = items_remaining,
+                    max_concurrency=handler.max_concurrency_limit,
                     allow_publishing_without_subscribers = handler.allow_publishing_without_subscribers)
                 
                 publishers.append(publisher)                
@@ -158,7 +159,6 @@ class SyncService():
                     dispatcher = handler.processor_name, 
                     event_name = handler.event_name, 
                     webhook_name = handler.process_webhook_name,
-                    max_concurrency = handler.max_concurrency_limit,
                     event_version = handler.event_version)
                 
                 subscriptions.append(subscription)     

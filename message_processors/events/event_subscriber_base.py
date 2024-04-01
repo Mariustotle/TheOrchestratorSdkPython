@@ -17,11 +17,10 @@ class EventSubscriberBase(ABC, Generic[T]):
     process_webhook_name:str
     request_type:type
     application_name:str    
-    event_version:Optional[str] = None
-    max_concurrency_limit: Optional[int] = None
+    event_version:Optional[str] = None    
    
     def __init__(self, processor_name:str, event_name:str, request_type:type, 
-            event_version:Optional[str] = None, max_concurrency_limit:Optional[int] = None) -> None:
+            event_version:Optional[str] = None) -> None:
         
         super().__init__()       
         
@@ -35,8 +34,8 @@ class EventSubscriberBase(ABC, Generic[T]):
         self.process_webhook_name = orchestrator_settings.default_callback_webhook.name
         self.application_name = orchestrator_settings.application_name
         
-        self.processor_name = processor_name        
-        self.max_concurrency_limit = max_concurrency_limit
+        self.processor_name = processor_name
+        
         
     @abstractmethod
     async def _process(self, request: T, name:str, reference:Optional[str], unit_of_work:Optional[UnitOfWork] = None) -> None:

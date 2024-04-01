@@ -26,11 +26,13 @@ class EventPublisherBase(ABC, Generic[T]):
     de_duplication_enabled:Optional[bool] = None
     allow_publishing_without_subscribers:Optional[bool] = None
     require_new_subscriber_approval:Optional[bool] = None
+    max_concurrency_limit: Optional[int] = None
    
     def __init__(self, processor_name:str, event_name:str, request_type:type, latest_version:Optional[str] = None,
                  de_duplication_enabled:Optional[bool] = None, allow_publishing_without_subscribers:Optional[bool] = None,
                  processing_type:Optional[ProcessingType] = ProcessingType.Concurrent,
-                 require_new_subscriber_approval:Optional[bool] = None) -> None:
+                 require_new_subscriber_approval:Optional[bool] = None,
+                 max_concurrency_limit:Optional[int] = None) -> None:
         super().__init__()
         
         config_reader = ConfigReader()
@@ -46,6 +48,7 @@ class EventPublisherBase(ABC, Generic[T]):
         self.de_duplication_enabled = de_duplication_enabled
         self.allow_publishing_without_subscribers = allow_publishing_without_subscribers
         self.require_new_subscriber_approval = require_new_subscriber_approval
+        self.max_concurrency_limit = max_concurrency_limit
         
     def build_unique_header(self, request_object:T) -> Optional[str]:
         return None
