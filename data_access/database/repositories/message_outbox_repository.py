@@ -92,46 +92,35 @@ class MessageOutboxRepository(RepositoryBase):
         
         self.session.add(message)
         
-    async def remove_duplicates_pending_submission(self):        
-        subquery = (
-            self.session.query(
-                MessageOutboxEntity.message_name,
-                MessageOutboxEntity.unique_header,
-                MessageOutboxEntity.id,
-                func.max(MessageOutboxEntity.created_date).label('max_created_date')
-            )
-            .filter_by(is_completed=False, de_duplication_enabled=True)
-            .group_by(
-                MessageOutboxEntity.message_name,
-                MessageOutboxEntity.unique_header,
-                MessageOutboxEntity.transaction_reference
-            )
-            .subquery()
+    async def remove_duplicates_pending_submission(self):
+        
+        # Step 1: Identify the most recent records for each unique_header_hash and handler_name
+        subquery = self.session.query(
+            MessageOutboxEntity.unique_header_hash,
+            MessageOutboxEntity.handler_name,
+            func.max(MessageOutboxEntity.created_date).label('latest_date')
+        ).group_by(
+            MessageOutboxEntity.unique_header_hash,
+            MessageOutboxEntity.handler_name
+        ).subquery()
+                
+        # Step 2: Update the older duplicate records
+        duplicates = self.session.query(MessageOutboxEntity).join(
+            subquery,
+            (MessageOutboxEntity.unique_header_hash == subquery.c.unique_header_hash) &
+            (MessageOutboxEntity.handler_name == subquery.c.handler_name) &
+            (MessageOutboxEntity.created_date < subquery.c.latest_date)
         )
 
-        duplicates = (
-            self.session.query(MessageOutboxEntity)
-            .join(
-                subquery,
-                (MessageOutboxEntity.message_name == subquery.c.message_name) &
-                (MessageOutboxEntity.unique_header == subquery.c.unique_header) &
-                (MessageOutboxEntity.id == subquery.c.id) &
-                (MessageOutboxEntity.created_date != subquery.c.max_created_date)
-            )
-            .filter_by(is_completed=False, de_duplication_enabled=True)
-            .all()
-        )
+        for record in duplicates:
+            record.status = OutboxStatus.Duplicate.name
+            record.is_completed = True
 
-        for duplicate in duplicates:
-            duplicate.status = OutboxStatus.Duplicate.name
-            duplicate.is_completed = True
         self.session.commit()
                 
 
     async def get_next_messages(self, batch_size: int) -> ReadyForSubmissionBatch:
-        
-        time_threshold = datetime.utcnow() - timedelta(hours=1)
-        
+       
         ready_count = self.session.query(MessageOutboxEntity).filter(MessageOutboxEntity.status == OutboxStatus.Ready.name).count() # Add and is eligble
         not_completed_count = self.session.query(MessageOutboxEntity).filter(MessageOutboxEntity.is_completed == False).count()
         need_intervention_count = self.session.query(MessageOutboxEntity).filter(MessageOutboxEntity.status == OutboxStatus.Preperation.name).count() 

@@ -8,6 +8,8 @@ from orchestrator_sdk.callback_context import CallbackContext
 from orchestrator_sdk.contracts.publishing.publish_envelope import PublishEnvelope
 from orchestrator_sdk.contracts.types.processing_type import ProcessingType
 
+import hashlib
+
 logger = Logger.get_instance()
 
 T = TypeVar('T')
@@ -27,6 +29,17 @@ class EventPublisherBase(ABC, Generic[T]):
     allow_publishing_without_subscribers:Optional[bool] = None
     require_new_subscriber_approval:Optional[bool] = None
     max_concurrency_limit: Optional[int] = None
+    
+    @staticmethod
+    def hash_and_convert_to_string(content: Optional[str]) -> Optional[str]:
+        if content is None:
+            return None
+
+        hash_object = hashlib.sha256()
+        hash_object.update(content.encode())
+        hash_hex = hash_object.hexdigest()  # Convert binary hash to hex string
+
+        return hash_hex
    
     def __init__(self, processor_name:str, event_name:str, request_type:type, latest_version:Optional[str] = None,
                  de_duplication_enabled:Optional[bool] = None, allow_publishing_without_subscribers:Optional[bool] = None,
@@ -56,7 +69,8 @@ class EventPublisherBase(ABC, Generic[T]):
     def build_request(self, request_object:T, reference:Optional[str] = None, priority:Optional[int] = None) -> PublishEventRequest:        
         serialized_payload = request_object.json()
         
-        unique_header = self.build_unique_header(request_object)   
+        unique_header_string = self.build_unique_header(request_object) 
+        unique_header_hash = EventPublisherBase.hash_and_convert_to_string(unique_header_string)
         
         source_trace_message_id = None        
         if CallbackContext.is_available():
@@ -64,7 +78,7 @@ class EventPublisherBase(ABC, Generic[T]):
         
         publish_request:PublishEventRequest = PublishEventRequest.Create(
             application_name=self.application_name, event_name=self.event_name, priority=priority, event_version=self.latest_version, 
-            event_reference=reference, content=serialized_payload, source_trace_message_id=source_trace_message_id, unique_request_header=unique_header)
+            event_reference=reference, content=serialized_payload, source_trace_message_id=source_trace_message_id, unique_request_header_hash=unique_header_hash)
             
         envelope = PublishEnvelope.Create(
             publish_request=publish_request,
@@ -75,6 +89,6 @@ class EventPublisherBase(ABC, Generic[T]):
             source_trace_message_id=source_trace_message_id,
             priority=priority,
             de_duplication_enabled=self.de_duplication_enabled,
-            unique_header=unique_header)
+            unique_header_hash=unique_header_hash)
        
         return envelope

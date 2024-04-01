@@ -1,5 +1,5 @@
 from typing import Optional
-from sqlalchemy import Column, String, DATETIME, Boolean, Integer
+from sqlalchemy import Column, String, DATETIME, Boolean, Integer, LargeBinary
 from orchestrator_sdk.data_access.database.outbox_status import OutboxStatus
 from orchestrator_sdk.data_access.database.message_entity_base import MessageEntityBase
 
@@ -18,7 +18,7 @@ class MessageOutboxEntity(MessageEntityBase):
     message_name = Column(String, nullable=False)
     handler_name = Column(String, nullable=False)
     de_duplication_enabled = Column(Boolean, nullable=False)
-    unique_header = Column(String, nullable=True)
+    unique_header_hash = Column(String, nullable=False)
     source_trace_message_id = Column(String, nullable=True)
     process_count = Column(Integer, nullable=False)
     eligible_after = Column(DATETIME, nullable=True)
@@ -33,9 +33,9 @@ class MessageOutboxEntity(MessageEntityBase):
             message_name:str,
             source_trace_message_id:str,
             de_duplication_enabled:bool,
-            unique_header:str,
+            unique_header_hash:Optional[str],
             priority:Optional[int],
-            eligible_after:Optional[datetime] = None):
+            eligible_after:Optional[datetime] = None):      
         
         return MessageOutboxEntity(
             publish_request_object = publish_request_object.json() if publish_request_object is not None else None,
@@ -45,7 +45,7 @@ class MessageOutboxEntity(MessageEntityBase):
             source_trace_message_id = source_trace_message_id,
             process_count = 0,
             de_duplication_enabled = de_duplication_enabled,
-            unique_header = unique_header,
+            unique_header_hash = unique_header_hash,
             eligible_after = eligible_after,
             created_date = datetime.utcnow(),
             is_completed = str(False),

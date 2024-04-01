@@ -1,5 +1,3 @@
-import uuid
- 
 from typing import Optional
 from pydantic import BaseModel, UUID4
 
@@ -8,14 +6,12 @@ class PublishEnvelope(BaseModel):
     handler_name:str
     message_name:str
     de_duplication_enabled:bool
-    unique_header:Optional[str]
+    unique_header_hash:Optional[str]
     reference:Optional[str] = None
     publish_request:Optional[object] = None
     source_trace_message_id:Optional[str] = None    
-    priority:Optional[int] = None    
-
-    ## TODO: Remove trace data from payload into envolope level data to be passed in the header not body    
-    
+    priority:Optional[int] = None
+        
     @staticmethod
     def Create( 
             publish_request:object, 
@@ -26,7 +22,10 @@ class PublishEnvelope(BaseModel):
             source_trace_message_id:Optional[str] = None, 
             priority:Optional[int] = None, 
             de_duplication_enabled:bool = None, 
-            unique_header:Optional[str] = None):
+            unique_header_hash:Optional[str] = None):
+        
+        if de_duplication_enabled and unique_header_hash is None:
+            raise Exception(f"Unable to publish message, De Duplication is enabled but there is no Unique Header provided. Message Name=[{message_name}], Handler Name=[{handler_name}], Reference=[{reference}]")            
         
         return PublishEnvelope(
             publish_request = publish_request,
@@ -37,5 +36,5 @@ class PublishEnvelope(BaseModel):
             source_trace_message_id = source_trace_message_id,
             priority = priority,
             de_duplication_enabled = de_duplication_enabled if de_duplication_enabled is not None else False,
-            unique_header = unique_header
-        )
+            unique_header_hash = unique_header_hash)
+        

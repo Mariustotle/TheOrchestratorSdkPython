@@ -12,7 +12,7 @@ class RaiseCommandRequest(BaseModel):
     Content: Optional[str] = None
     Priority:Optional[int] = None
     SourceTraceMessageId: Optional[str] = None
-    UniqueRequestHeader: Optional[str] = None       
+    UniqueRequestHeaderHash: Optional[str] = None       
 
     @staticmethod
     def Create( 
@@ -23,7 +23,7 @@ class RaiseCommandRequest(BaseModel):
             content: Optional[str] = None,
             priority: Optional[int] = None,
             source_trace_message_id: Optional[str] = None,
-            unique_request_header: Optional[str] = None): 
+            unique_request_header_hash: Optional[str] = None): 
         
         return RaiseCommandRequest(
             ApplicationName=application_name,
@@ -33,5 +33,5 @@ class RaiseCommandRequest(BaseModel):
             Content = content,
             Priority = priority,
             SourceTraceMessageId = source_trace_message_id,
-            UniqueRequestHeader=unique_request_header            
+            UniqueRequestHeaderHash = unique_request_header_hash            
         )

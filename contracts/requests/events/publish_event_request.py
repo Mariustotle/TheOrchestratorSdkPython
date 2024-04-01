@@ -11,7 +11,7 @@ class PublishEventRequest(BaseModel):
     EventReference:Optional[str] = None
     Content:Optional[str] = None
     Priority:Optional[int] = None
-    UniqueRequestHeader: Optional[str] = None
+    UniqueRequestHeaderHash: Optional[str] = None
     SourceTraceMessageId: Optional[str] = None
     
     @staticmethod
@@ -23,7 +23,7 @@ class PublishEventRequest(BaseModel):
             event_reference:Optional[str] = None,
             event_version:Optional[str] = None,
             source_trace_message_id:Optional[str] = None,
-            unique_request_header:Optional[str] = None):     
+            unique_request_header_hash:Optional[str] = None):     
         
         return PublishEventRequest(
             ApplicationName = application_name,
@@ -33,6 +33,6 @@ class PublishEventRequest(BaseModel):
             Content = content,
             Priority = priority,
             SourceTraceMessageId = source_trace_message_id,
-            UniqueRequestHeader=unique_request_header
+            UniqueRequestHeaderHash = unique_request_header_hash
         )
 

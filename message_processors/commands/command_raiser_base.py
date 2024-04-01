@@ -7,6 +7,7 @@ from orchestrator_sdk.contracts.requests.commands.raise_command_request import R
 from orchestrator_sdk.callback_context import CallbackContext
 from orchestrator_sdk.contracts.publishing.publish_envelope import PublishEnvelope
 
+import hashlib
 logger = Logger.get_instance()
 
 T = TypeVar('T')
@@ -21,6 +22,17 @@ class CommandRaiserBase(ABC, Generic[T]):
     processor_name:str     
     command_version:Optional[str] = None
     de_duplication_enabled:Optional[bool] = None
+    
+    @staticmethod
+    def hash_and_convert_to_string(content: Optional[str]) -> Optional[str]:
+        if content is None:
+            return None
+
+        hash_object = hashlib.sha256()
+        hash_object.update(content.encode())
+        hash_hex = hash_object.hexdigest()  # Convert binary hash to hex string
+
+        return hash_hex
    
     def __init__(self, processor_name:str, command_name:str, request_type:type, command_version:Optional[str] = None, de_duplication_enabled:Optional[bool] = None) -> None:
         super().__init__()
@@ -42,7 +54,8 @@ class CommandRaiserBase(ABC, Generic[T]):
     def build_request(self, request_object:T, reference:Optional[str] = None, priority:Optional[int] = None) -> RaiseCommandRequest:        
         serialized_payload = request_object.json()
         
-        unique_header = self.build_unique_header(request_object)        
+        unique_header_string = self.build_unique_header(request_object) 
+        unique_header_hash = CommandRaiserBase.hash_and_convert_to_string(unique_header_string)    
         
         source_trace_message_id = None        
         if CallbackContext.is_available():
@@ -51,7 +64,7 @@ class CommandRaiserBase(ABC, Generic[T]):
         publish_request = RaiseCommandRequest.Create(
                 command_name=self.command_name, command_reference=reference,
                 content=serialized_payload, application_name=self.application_name, 
-                priority=priority, source_trace_message_id=source_trace_message_id, unique_request_header=unique_header)
+                priority=priority, source_trace_message_id=source_trace_message_id, unique_request_header_hash=unique_header_hash)
 
         envelope = PublishEnvelope.Create(
             publish_request=publish_request,
@@ -62,7 +75,6 @@ class CommandRaiserBase(ABC, Generic[T]):
             source_trace_message_id=source_trace_message_id,
             priority=priority,
             de_duplication_enabled=self.de_duplication_enabled,
-            unique_header=unique_header
-            )
+            unique_header_hash=unique_header_hash)
         
         return envelope

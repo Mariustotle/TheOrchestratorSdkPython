@@ -64,7 +64,7 @@ class LocalOutboxService:
             try:           
                 outbox_repo = MessageOutboxRepository(session, None)     
                 
-                # await outbox_repo.remove_duplicates_pending_submission()      
+                await outbox_repo.remove_duplicates_pending_submission()      
                 batch_result:ReadyForSubmissionBatch = await outbox_repo.get_next_messages(batch_size=self.BATCH_SIZE)               
                 logger.info(f'OUTBOX Queue Summary >>>> Remaining [{len(batch_result.messages)}/{batch_result.messages_not_completed}] Ready [{batch_result.messages_ready}] Intervention [{batch_result.messages_needing_intervention}] <<<<')
                 
@@ -86,7 +86,7 @@ class LocalOutboxService:
                                     source_trace_message_id=message.source_trace_message_id,
                                     priority=message.priority, message_name=message.message_name,
                                     de_duplication_enabled=message.de_duplication_enabled,
-                                    unique_header=message.unique_header)
+                                    unique_header_hash=message.unique_header_hash)
                                 
                             await api_submission.submit(envelope)
                         
