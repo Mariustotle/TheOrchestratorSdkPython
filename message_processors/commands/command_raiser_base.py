@@ -60,7 +60,10 @@ class CommandRaiserBase(ABC, Generic[T]):
         source_trace_message_id = None        
         if CallbackContext.is_available():
             source_trace_message_id = CallbackContext.trace_message_id.get()
-            
+
+        if (priority != None and (priority < 0 or priority > 1000)):
+            raise Exception(f'Trying to set priority [{priority}], failed as it is not between 1 and 1000')
+
         publish_request = RaiseCommandRequest.Create(
                 command_name=self.command_name, command_reference=reference,
                 content=serialized_payload, application_name=self.application_name, 

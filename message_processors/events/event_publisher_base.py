@@ -76,6 +76,9 @@ class EventPublisherBase(ABC, Generic[T]):
         if CallbackContext.is_available():
             source_trace_message_id = CallbackContext.trace_message_id.get()
         
+        if (priority != None and (priority < 0 or priority > 1000)):
+            raise Exception(f'Trying to set priority [{priority}], failed as it is not between 1 and 1000')
+       
         publish_request:PublishEventRequest = PublishEventRequest.Create(
             application_name=self.application_name, event_name=self.event_name, priority=priority, event_version=self.latest_version, 
             event_reference=reference, content=serialized_payload, source_trace_message_id=source_trace_message_id, unique_request_header_hash=unique_header_hash)
