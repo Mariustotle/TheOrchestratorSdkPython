@@ -18,7 +18,7 @@ class MessageOutboxEntity(MessageEntityBase):
     message_name = Column(String, nullable=False)
     handler_name = Column(String, nullable=False)
     de_duplication_enabled = Column(Boolean, nullable=False)
-    unique_header_hash = Column(String, nullable=False)
+    unique_header_hash = Column(String, nullable=True)
     source_trace_message_id = Column(String, nullable=True)
     process_count = Column(Integer, nullable=False)
     eligible_after = Column(DATETIME, nullable=True)
