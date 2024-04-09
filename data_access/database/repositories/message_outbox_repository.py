@@ -139,6 +139,5 @@ class MessageOutboxRepository(RepositoryBase):
         
         return bacth_result
     
-    async def delete_old_message_history(self, retention_in_days:int):        
-        threshold_date = datetime.utcnow() - timedelta(days=retention_in_days)
-        self.session.query(MessageOutboxEntity).filter(MessageOutboxEntity.published_date < threshold_date).delete() # Can delete rollback faster
+    async def delete_old_message_history(self):        
+        self.session.query(MessageOutboxEntity).filter(MessageOutboxEntity.is_completed == True).delete()

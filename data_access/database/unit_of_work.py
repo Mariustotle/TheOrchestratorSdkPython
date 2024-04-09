@@ -3,6 +3,7 @@ from orchestrator_sdk.data_access.database.repositories.message_history_reposito
 from orchestrator_sdk.data_access.database.services.local_outbox_service import LocalOutboxService
 from orchestrator_sdk.data_access.database.repository_base import RepositoryBase
 
+from orchestrator_sdk.data_access.database.message_database import message_database as ms_db
 from orchestrator_sdk.data_access.database.database_context import DatabaseContext
 from typing import Optional
 from sqlalchemy.orm import Session
@@ -16,8 +17,7 @@ class UnitOfWork:
     transaction_reference:uuid4 = None
     has_application_session:bool = False
     has_changes:bool = False
-    
-    message_database:DatabaseContext = None
+    message_database = None
     message_session:Session = None
     
     _repositories:dict = None
@@ -28,23 +28,23 @@ class UnitOfWork:
     message_history_repository:MessageHistoryRepository = None
     message_outbox_repository:MessageOutboxRepository = None
     
-   
     # TODO: Create repository base class, making adding of repositories into a list not fixed set
-    def __init__(self, message_database:DatabaseContext, application_database:DatabaseContext = None):
+    def __init__(self, application_database:DatabaseContext = None):
         
         self._repositories = dict()
-        self.message_database = message_database
         
         if (application_database != None):
             self.has_application_session = True        
             self.application_database = application_database
+
+        self.message_database = ms_db            
             
         self.transaction_reference = uuid.uuid4()
-        self.local_outbox_service = LocalOutboxService(message_database)       
+        self.local_outbox_service = LocalOutboxService(self.message_database)       
         
 
     def __enter__(self):
-        self.message_session = self.message_database.db_session_maker()
+        self.message_session = ms_db.db_session_maker()
         
         # Special constructor parameters
         self.add_repository(MessageOutboxRepository(session=self.message_session, transaction_reference=self.transaction_reference))

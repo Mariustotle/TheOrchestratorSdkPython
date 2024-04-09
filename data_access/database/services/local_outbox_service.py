@@ -1,7 +1,7 @@
 import asyncio
 
 from typing import Optional
-from datetime import datetime
+from datetime import datetime, timedelta
 from sqlalchemy.orm import Session
 
 from orchestrator_sdk.data_access.database.repositories.message_outbox_repository import MessageOutboxRepository, ReadyForSubmissionBatch
@@ -13,6 +13,7 @@ from orchestrator_sdk.data_access.database.outbox_status import OutboxStatus
 from requests.exceptions import ConnectionError as RequestsConnectionError
 
 from orchestrator_sdk.seedworks.logger import Logger
+
 logger = Logger.get_instance()
 
 class LocalOutboxService:
@@ -20,15 +21,15 @@ class LocalOutboxService:
     lock = asyncio.Lock()
     is_busy:bool = False
     message_database:MessageDatabase = None    
-    remaining_count:Optional[int] = None
+    remaining_count:Optional[int] = None    
+    min_cleanup_interval_in_hours:int = 1
+    
     
     BATCH_SIZE:int = 80
     BATCH_WAIT_TIME_IN_SECONDS:int = 30
     SLACK_MARKER:int = 20
     SLACK_WAIT_TIME_IN_SECONDS:int = 0.5
     CONCURENT_LIMIT:int = 10
-    
-    RETENTION_TIME_IN_DAYS:int = 3
     
     def __init__(self, message_database:MessageDatabase): 
         self.is_busy = False
@@ -112,9 +113,14 @@ class LocalOutboxService:
         with self.message_database.db_session_maker() as session:
         
             try:           
-                outbox_repo = MessageOutboxRepository(session, None)     
+                outbox_repo = MessageOutboxRepository(session, None)
                 
-                await outbox_repo.remove_duplicates_pending_submission()      
+                do_cleanup:bool = True if self.message_database.last_cleanup_timestamp is None or (datetime.utcnow() - self.message_database.last_cleanup_timestamp) > timedelta(hours=self.min_cleanup_interval_in_hours) else False
+                if do_cleanup:
+                    await self.cleanup(outbox_repo)              
+                       
+                await outbox_repo.remove_duplicates_pending_submission()               
+                
                 batch_result:ReadyForSubmissionBatch = await outbox_repo.get_next_messages(batch_size=self.BATCH_SIZE)               
                 logger.info(f'OUTBOX Queue Summary >>>> Remaining [{len(batch_result.messages)}/{batch_result.messages_not_completed}] Ready [{batch_result.messages_ready}] Intervention [{batch_result.messages_needing_intervention}] <<<<')
                 
@@ -159,11 +165,12 @@ class LocalOutboxService:
         asyncio.create_task(self.process_next_batch())
 
             
-    async def cleanup(self, session):  
-        # Removed in its own context, non-blocking to original query
-       
-        repo = MessageOutboxRepository(session, None)
-        await repo.delete_old_message_history(self.RETENTION_TIME_IN_DAYS)
-        
-        session.commit()
+    async def cleanup(self, outbox_repo: MessageOutboxRepository):  
+        try:                        
+            await outbox_repo.delete_old_message_history() 
+            outbox_repo.session.commit()
+            self.message_database.last_cleanup_timestamp = datetime.utcnow()
 
+        except Exception as ex: 
+            logger.error(f'Failed to perform outbox local db cleanup. Details: {ex}')
+            raise
