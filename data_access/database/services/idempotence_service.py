@@ -13,7 +13,7 @@ class IdempotenceService:
     
     last_timestamp:datetime = None
     min_cleanup_interval_in_hours:int = 2
-    retention_period_in_days:int = 1
+    retention_period_in_days:int = 3
 
     async def has_message_been_processed(self, message_id:uuid4, unit_of_work:UnitOfWork) -> bool:
         do_cleanup:bool = True if self.last_timestamp is None or (datetime.utcnow() - self.last_timestamp) > timedelta(hours=self.min_cleanup_interval_in_hours) else False
