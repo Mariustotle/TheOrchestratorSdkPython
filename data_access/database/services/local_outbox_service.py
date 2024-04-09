@@ -2,9 +2,11 @@ import asyncio
 
 from typing import Optional
 from datetime import datetime
+from sqlalchemy.orm import Session
 
 from orchestrator_sdk.data_access.database.repositories.message_outbox_repository import MessageOutboxRepository, ReadyForSubmissionBatch
 from orchestrator_sdk.data_access.database.message_database import MessageDatabase
+from orchestrator_sdk.data_access.database.entities.message_outbox_entity import MessageOutboxEntity
 from orchestrator_sdk.contracts.publishing.publish_envelope import PublishEnvelope
 from orchestrator_sdk.data_access.message_broker.methods.api_submission import ApiSubmission
 from orchestrator_sdk.data_access.database.outbox_status import OutboxStatus
@@ -20,8 +22,12 @@ class LocalOutboxService:
     message_database:MessageDatabase = None    
     remaining_count:Optional[int] = None
     
-    WAIT_TIME_IN_SECONDS:int = 30
-    BATCH_SIZE:int = 20
+    BATCH_SIZE:int = 80
+    BATCH_WAIT_TIME_IN_SECONDS:int = 30
+    SLACK_MARKER:int = 20
+    SLACK_WAIT_TIME_IN_SECONDS:int = 0.5
+    CONCURENT_LIMIT:int = 10
+    
     RETENTION_TIME_IN_DAYS:int = 3
     
     def __init__(self, message_database:MessageDatabase): 
@@ -46,8 +52,51 @@ class LocalOutboxService:
         
         async with LocalOutboxService.lock: 
             LocalOutboxService.is_busy = False
+            
+    async def process_item(self, session:Session, submitter:ApiSubmission, message:MessageOutboxEntity, content:str) -> bool: 
+        try:
+                message.process_count += 1                            
+                envelope = PublishEnvelope.Create(
+                        endpoint=message.endpoint,
+                        publish_request=content,
+                        handler_name=message.handler_name,
+                        source_trace_message_id=message.source_trace_message_id,
+                        priority=message.priority, message_name=message.message_name,
+                        de_duplication_enabled=message.de_duplication_enabled,
+                        unique_header_hash=message.unique_header_hash)
+                    
+                await submitter.submit(envelope)
+            
+                message.status = OutboxStatus.Published.name
+                message.is_completed = True
+                message.published_date = datetime.utcnow()
+                session.commit()                                   
+
+                return True
+        
+        except RequestsConnectionError:
+                logger.warn(f'Unable to connect to orchestrator server to publish the messages waiting to be sent. Will delay retry.')
+                logger.info(f'MESSAGE DB POOL STATUS: [{self.message_database.db_engine.pool.status()}]')
+                session.rollback()
+                return False
+            
+        except Exception as ex:
+                logger.error(f"Oops! {ex.__class__} occurred. Details: {ex}")
+                logger.info(f'MESSAGE DB POOL STATUS: [{self.message_database.db_engine.pool.status()}]')
+                session.rollback()
+                raise   
    
-    
+    async def process_all(self, messages, session:Session, api_submission:ApiSubmission) -> int:
+
+        # Create a list of coroutine objects by calling the process function on each item
+        tasks = [self.process_item(session, api_submission, message, message.publish_request_object) for message in messages]
+
+        # Wait for all tasks to complete and gather their results
+        results = await asyncio.gather(*tasks)        
+        successes = sum(results)
+        
+        return successes   
+   
     async def process_next_batch(self):
                 
         previous_batch_remaining = self.remaining_count
@@ -55,9 +104,10 @@ class LocalOutboxService:
         remaining:int = None
         ready:int = None
         api_submission = ApiSubmission()
-        error_occurred = False
         add_extra_delay = True
         success_count = 0
+        slack_count = 0
+        error_occurred = False
         
         with self.message_database.db_session_maker() as session:
         
@@ -72,53 +122,30 @@ class LocalOutboxService:
                 remaining = self.remaining_count
                 ready = batch_result.messages_ready
                 
-                for message in batch_result.messages:
-                    publish_request = message.publish_request_object
+                
+                while (len(batch_result.messages) > 0):
+                    concurrent_subset = [batch_result.messages.pop() for _ in range(min(self.CONCURENT_LIMIT, len(batch_result.messages)))]
+                    successes = await self.process_all(concurrent_subset, session, api_submission)
                     
-                    try:
-                            message.process_count += 1
-                            session.commit()                    
-                                    
-                            envelope = PublishEnvelope.Create(
-                                    endpoint=message.endpoint,
-                                    publish_request=publish_request,
-                                    handler_name=message.handler_name,
-                                    source_trace_message_id=message.source_trace_message_id,
-                                    priority=message.priority, message_name=message.message_name,
-                                    de_duplication_enabled=message.de_duplication_enabled,
-                                    unique_header_hash=message.unique_header_hash)
-                                
-                            await api_submission.submit(envelope)
-                        
-                            message.status = OutboxStatus.Published.name
-                            message.is_completed = True
-                            message.published_date = datetime.utcnow()
-                            session.commit()
-                            success_count += 1
+                    success_count += successes        
+                    slack_count += successes
+                
+                    if slack_count >= self.SLACK_MARKER:
+                        await asyncio.sleep(self.SLACK_WAIT_TIME_IN_SECONDS)
+                        slack_count = 0
+
+                    if (successes == 0):
+                        error_occurred = True
+                        break                                            
                     
-                    except RequestsConnectionError:
-                            error_occurred = True
-                            logger.warn(f'Unable to connect to orchestrator server to publish the [{len(batch_result.messages)}] messages waiting to be sent. Will delay retry.')
-                            logger.info(f'MESSAGE DB POOL STATUS: [{self.message_database.db_engine.pool.status()}]')
-                            session.rollback()
-                            break
-                        
-                    except Exception as ex:
-                            error_occurred = True        
-                            logger.error(f"Oops! {ex.__class__} occurred. Details: {ex}")
-                            logger.info(f'MESSAGE DB POOL STATUS: [{self.message_database.db_engine.pool.status()}]')
-                            session.rollback()
-                            raise
-                    
-            except Exception as ex:   
-                error_occurred = True         
+            except Exception as ex:     
                 logger.error(f"Oops! {ex.__class__} occurred. Details: {ex}")
                 logger.info(f'MESSAGE DB POOL STATUS: [{self.message_database.db_engine.pool.status()}]')
                 session.rollback()
                 
             finally:
                 
-                if (remaining - success_count) <= 0:                
+                if (remaining != None and (remaining - success_count) <= 0):                
                     return
                 
                 error_occured = remaining == None or ready == None or error_occurred == True
@@ -126,7 +153,7 @@ class LocalOutboxService:
                 previous_batch_did_not_publish = previous_batch_remaining != None and remaining == previous_batch_remaining
                 add_extra_delay = error_occured or no_remaining_items_are_ready or previous_batch_did_not_publish                
                 
-        delay:int = self.WAIT_TIME_IN_SECONDS if add_extra_delay else 1
+        delay:int = self.BATCH_WAIT_TIME_IN_SECONDS if add_extra_delay else 1
         await asyncio.sleep(delay)
         
         asyncio.create_task(self.process_next_batch())
