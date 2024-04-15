@@ -130,7 +130,8 @@ class LocalOutboxService:
                 
                 
                 while (len(batch_result.messages) > 0):
-                    concurrent_subset = [batch_result.messages.pop() for _ in range(min(self.CONCURENT_LIMIT, len(batch_result.messages)))]
+                    batch_size = min(self.CONCURENT_LIMIT, len(batch_result.messages))
+                    concurrent_subset = [batch_result.messages.pop() for _ in range(batch_size)]
                     successes = await self.process_all(concurrent_subset, session, api_submission)
                     
                     success_count += successes        
@@ -140,7 +141,7 @@ class LocalOutboxService:
                         await asyncio.sleep(self.SLACK_WAIT_TIME_IN_SECONDS)
                         slack_count = 0
 
-                    if (successes == 0):
+                    if (batch_size > 0 and successes < batch_size):
                         error_occurred = True
                         break                                            
                     
