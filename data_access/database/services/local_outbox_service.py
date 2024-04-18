@@ -117,9 +117,9 @@ class LocalOutboxService:
                 
                 do_cleanup:bool = True if self.message_database.last_cleanup_timestamp is None or (datetime.utcnow() - self.message_database.last_cleanup_timestamp) > timedelta(hours=self.min_cleanup_interval_in_hours) else False
                 if do_cleanup:
-                    await self.cleanup(outbox_repo)              
-                       
-                await outbox_repo.remove_duplicates_pending_submission()               
+                    await asyncio.wait_for(self.cleanup(outbox_repo), timeout=120)
+                
+                await asyncio.wait_for(outbox_repo.remove_duplicates_pending_submission(), timeout=30)
                 
                 batch_result:ReadyForSubmissionBatch = await outbox_repo.get_next_messages(batch_size=self.BATCH_SIZE)               
                 logger.info(f'OUTBOX Queue Summary >>>> Remaining [{len(batch_result.messages)}/{batch_result.messages_not_completed}] Ready [{batch_result.messages_ready}] Intervention [{batch_result.messages_needing_intervention}] <<<<')
