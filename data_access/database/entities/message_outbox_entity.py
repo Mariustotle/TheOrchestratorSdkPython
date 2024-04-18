@@ -1,5 +1,5 @@
 from typing import Optional
-from sqlalchemy import Column, String, DATETIME, Boolean, Integer, LargeBinary
+from sqlalchemy import Column, String, DATETIME, Boolean, Integer, Index
 from orchestrator_sdk.data_access.database.outbox_status import OutboxStatus
 from orchestrator_sdk.data_access.database.message_entity_base import MessageEntityBase
 
@@ -24,6 +24,10 @@ class MessageOutboxEntity(MessageEntityBase):
     eligible_after = Column(DATETIME, nullable=True)
     endpoint = Column(String, nullable=False)
     priority = Column(Integer, nullable=False)
+    
+    idx_unique_header_handler = Index('idx_unique_header_handler', 'unique_header_hash', 'handler_name')
+    idx_created_date = Index('idx_created_date', 'created_date')
+    idx_status_priority_created = Index('idx_status_priority_created', 'status', 'priority', 'created_date', postgresql_using='btree')
     
     @staticmethod
     def Create( 
