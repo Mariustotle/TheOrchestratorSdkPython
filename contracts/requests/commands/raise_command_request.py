@@ -10,6 +10,7 @@ class RaiseCommandRequest(BaseModel):
     CommandVersion: Optional[str] = None
     CommandReference: Optional[str] = None
     Content: Optional[str] = None
+    ItemsRemainingAtSource: Optional[int] = None
     Priority:Optional[int] = None
     SourceTraceMessageId: Optional[str] = None
     UniqueRequestHeaderHash: Optional[str] = None       
@@ -21,6 +22,7 @@ class RaiseCommandRequest(BaseModel):
             command_version: Optional[str] = None,
             command_reference: Optional[str] = None,
             content: Optional[str] = None,
+            items_at_source:Optional[int] = None,
             priority: Optional[int] = None,
             source_trace_message_id: Optional[str] = None,
             unique_request_header_hash: Optional[str] = None): 
@@ -31,6 +33,7 @@ class RaiseCommandRequest(BaseModel):
             CommandVersion = command_version,
             CommandReference = command_reference,
             Content = content,
+            ItemsRemainingAtSource=items_at_source,
             Priority = priority,
             SourceTraceMessageId = source_trace_message_id,
             UniqueRequestHeaderHash = unique_request_header_hash            

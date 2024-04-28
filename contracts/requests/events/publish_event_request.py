@@ -13,11 +13,13 @@ class PublishEventRequest(BaseModel):
     Priority:Optional[int] = None
     UniqueRequestHeaderHash: Optional[str] = None
     SourceTraceMessageId: Optional[str] = None
+    ItemsRemainingAtSource: Optional[int] = None
     
     @staticmethod
     def Create (
             application_name:str,
-            event_name:str,            
+            event_name:str,
+            items_at_source:Optional[int] = None,
             priority:Optional[int] = None,
             content:Optional[str] = None,
             event_reference:Optional[str] = None,
@@ -31,6 +33,7 @@ class PublishEventRequest(BaseModel):
             EventVersion = event_version,
             EventReference = event_reference,
             Content = content,
+            ItemsRemainingAtSource=items_at_source,
             Priority = priority,
             SourceTraceMessageId = source_trace_message_id,
             UniqueRequestHeaderHash = unique_request_header_hash

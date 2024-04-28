@@ -1,4 +1,5 @@
 import asyncio
+import json
 
 from typing import Optional
 from datetime import datetime, timedelta
@@ -23,7 +24,7 @@ class LocalOutboxService:
     message_database:MessageDatabase = None    
     remaining_count:Optional[int] = None    
     min_cleanup_interval_in_hours:int = 1
-    
+    pending_message_counts:dict = None    
     
     BATCH_SIZE:int = 80
     BATCH_WAIT_TIME_IN_SECONDS:int = 60
@@ -34,6 +35,36 @@ class LocalOutboxService:
     def __init__(self, message_database:MessageDatabase): 
         self.is_busy = False
         self.message_database = message_database
+        
+    def update_message_counter_on_success(self, message_name):
+        
+        if (self.pending_message_counts != None and message_name in self.pending_message_counts):
+            counter = self.pending_message_counts[message_name]
+            self.pending_message_counts[message_name] = counter - 1
+            
+    def update_message_process_fields(self, priority:Optional[int], items_at_source:Optional[int], content:str) -> str:
+        
+        if content == None:
+            return content
+        
+        data = json.loads(content)
+        
+        priority_key = 'Priority'
+        items_at_source_key = 'ItemsRemainingAtSource'
+        
+        if (data != None and priority_key in data):
+            data[priority_key] = priority
+            
+        if (data != None and items_at_source_key in data):
+            data[items_at_source_key] = items_at_source
+            
+        converted_string = json.dumps(data)        
+        return  converted_string       
+        
+        
+    async def update_remaining_message_counters(self, repo:MessageOutboxRepository):
+        pending_counters = repo.get_pending_message_counts()        
+        self.pending_message_counts = pending_counters      
         
     async def check_for_messages_that_are_ready(self):         
         
@@ -56,36 +87,45 @@ class LocalOutboxService:
             
     async def process_item(self, session:Session, submitter:ApiSubmission, message:MessageOutboxEntity, content:str) -> bool: 
         try:
-                message.process_count += 1                            
-                envelope = PublishEnvelope.Create(
-                        endpoint=message.endpoint,
-                        publish_request=content,
-                        handler_name=message.handler_name,
-                        source_trace_message_id=message.source_trace_message_id,
-                        priority=message.priority, message_name=message.message_name,
-                        de_duplication_enabled=message.de_duplication_enabled,
-                        unique_header_hash=message.unique_header_hash)
-                    
-                await submitter.submit(envelope)
             
-                message.status = OutboxStatus.Published.name
-                message.is_completed = True
-                message.published_date = datetime.utcnow()
-                session.commit()                                   
+            items_at_source:Optional[int] = None
+            if (self.pending_message_counts != None and message.message_name in self.pending_message_counts):
+                items_at_source = self.pending_message_counts[message.message_name] - 1           
+            
+            payload = self.update_message_process_fields(message.priority, items_at_source, content)
+        
+            message.process_count += 1                            
+            envelope = PublishEnvelope.Create(
+                    endpoint=message.endpoint,
+                    publish_request=payload,
+                    handler_name=message.handler_name,
+                    source_trace_message_id=message.source_trace_message_id,
+                    priority=message.priority, message_name=message.message_name,
+                    de_duplication_enabled=message.de_duplication_enabled,
+                    unique_header_hash=message.unique_header_hash)
+                
+            await submitter.submit(envelope)
+        
+            message.status = OutboxStatus.Published.name
+            message.is_completed = True
+            message.published_date = datetime.utcnow()
+            session.commit()
+            
+            self.update_message_counter_on_success(message_name=message.message_name)           
 
-                return True
+            return True
         
         except RequestsConnectionError:
-                logger.warn(f'Unable to connect to orchestrator server to publish the messages waiting to be sent. Will delay retry.')
-                logger.info(f'MESSAGE DB POOL STATUS: [{self.message_database.db_engine.pool.status()}]')
-                session.rollback()
-                return False
+            logger.warn(f'Unable to connect to orchestrator server to publish the messages waiting to be sent. Will delay retry.')
+            logger.info(f'MESSAGE DB POOL STATUS: [{self.message_database.db_engine.pool.status()}]')
+            session.rollback()
+            return False
             
         except Exception as ex:
-                logger.error(f"Oops! {ex.__class__} occurred. Details: {ex}")
-                logger.info(f'MESSAGE DB POOL STATUS: [{self.message_database.db_engine.pool.status()}]')
-                session.rollback()
-                raise   
+            logger.error(f"Oops! {ex.__class__} occurred. Details: {ex}")
+            logger.info(f'MESSAGE DB POOL STATUS: [{self.message_database.db_engine.pool.status()}]')
+            session.rollback()
+            raise   
    
     async def process_all(self, messages, session:Session, api_submission:ApiSubmission) -> int:
 
@@ -123,10 +163,12 @@ class LocalOutboxService:
                 if do_cleanup:
                     await asyncio.wait_for(self.cleanup(outbox_repo), timeout=120)
                     
-                await asyncio.wait_for(outbox_repo.remove_duplicates_pending_submission(), timeout=30)                
+                await asyncio.wait_for(outbox_repo.remove_duplicates_pending_submission(), timeout=30)  
+                await asyncio.wait_for(self.update_remaining_message_counters(outbox_repo), timeout=30)             
                 session.commit()
                 
             except asyncio.TimeoutError:
+                self.pending_message_counts = None
                 logger.warn(f'Timeout while cleaning up outbox (Cleanup | Remove Duplicates)] - Not stopping, continuing with outbox processing.')
                 
             batch_result:ReadyForSubmissionBatch = await asyncio.wait_for(outbox_repo.get_next_messages(batch_size=self.BATCH_SIZE), timeout=60) 
@@ -181,8 +223,7 @@ class LocalOutboxService:
             await asyncio.sleep(delay)                
            
             if (another_batch):
-                asyncio.create_task(self.process_next_batch())
-            
+                asyncio.create_task(self.process_next_batch())            
 
             
     async def cleanup(self, outbox_repo: MessageOutboxRepository):  

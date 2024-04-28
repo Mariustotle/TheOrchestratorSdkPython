@@ -6,8 +6,7 @@ from sqlalchemy import func
 
 from sqlalchemy.orm import Session
 from uuid import uuid4
-from typing import List, Optional
-from datetime import datetime, timedelta
+from typing import List
 
 class ReadyForSubmissionBatch():
     messages_ready:int
@@ -45,6 +44,21 @@ class MessageOutboxRepository(RepositoryBase):
             converted = MessageOutboxSchema.model_validate(db_entity)
         
         return converted
+    
+    def get_pending_message_counts(self) -> dict:
+        
+        remaining_messages = (
+            self.session.query(
+                MessageOutboxEntity.message_name,
+                func.count(MessageOutboxEntity.id).label('remaining_count')
+            )
+            .filter(MessageOutboxEntity.is_completed == False) 
+            .group_by(MessageOutboxEntity.message_name)
+            .all())
+        
+        remaining_message_dict = {name: count for name, count in remaining_messages}        
+        return remaining_message_dict     
+        
     
     def prepare_outbox_message_for_transaction(self):
         # Find all pending messages for the given transaction_id
