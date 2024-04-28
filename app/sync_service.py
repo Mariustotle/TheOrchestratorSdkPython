@@ -12,7 +12,10 @@ from orchestrator_sdk.message_processors.events.event_subscriber_base import Eve
 from orchestrator_sdk.message_processors.events.event_publisher_base import EventPublisherBase
 from orchestrator_sdk.message_processors.commands.command_processor_base import CommandProcessorBase
 from orchestrator_sdk.message_processors.commands.command_raiser_base import CommandRaiserBase
+from orchestrator_sdk.data_access.database.repositories.message_outbox_repository import MessageOutboxRepository
 
+from orchestrator_sdk.data_access.database.message_database import message_database
+from sqlalchemy.orm import Session
 from typing import Optional, List
 
 import requests
@@ -39,8 +42,14 @@ class SyncService():
     def init(self, settings:OrchestratorConfig, endpoints:Endpoints, 
              event_subscribers:List[EventSubscriberBase] = None, event_publishers:List[EventPublisherBase] = None,
              command_raisers:List[CommandProcessorBase] = None, command_processors:List[CommandProcessorBase] = None) -> bool:
-       
+
+        session:Session = message_database.db_session_maker()
+        is_successfull:bool = False
+        
         try:
+            
+            repo = MessageOutboxRepository(session, None)            
+            pending_message_counts = repo.get_pending_message_counts()
             
             update_webhook_endpoint = endpoints.get_sync_default_webhook_endpoint()             
             self.sync_default_webhook(update_webhook_endpoint,
@@ -50,8 +59,8 @@ class SyncService():
                     settings.default_callback_webhook.api_token)           
                  
             event_subscriptions_reg = self.build_event_subscriptions(event_subscribers) if event_subscribers != None else None
-            event_publishers_reg = self.build_event_publishers(event_publishers) if event_publishers != None else None
-            command_raisers_reg = self.build_command_raisers(command_raisers) if command_raisers != None else None
+            event_publishers_reg = self.build_event_publishers(event_publishers, pending_message_counts) if event_publishers != None else None
+            command_raisers_reg = self.build_command_raisers(command_raisers, pending_message_counts) if command_raisers != None else None
             command_processors_reg = self.build_command_processors(command_processors) if command_processors != None else None
             
             sync_application_message_processors_endpoint = endpoints.get_sync_application_message_processors()
@@ -65,10 +74,16 @@ class SyncService():
             
             self.SuccessfullyInitiatlized = True
             
+            is_successfull = True
+            
         except Exception as ex:
             logger.error(f"Oops! {ex.__class__} occurred. Details: {ex}")
-            
-            return False    
+        
+        finally:
+            session.close()
+        
+        return is_successfull
+          
   
     
     def sync_default_webhook(self, endpoint:str, webhook_name:str, application_name:str, webhook_url:str, webhook_token:str) -> bool:
@@ -118,23 +133,26 @@ class SyncService():
             logger.error(f"Oops! {ex.__class__} occurred. Details: {ex}")
             return False
     
-    def build_event_publishers(self, event_publishers:List[EventPublisherBase]):
+    def build_event_publishers(self, event_publishers:List[EventPublisherBase], pending_message_counts:dict):
         publishers = []
         
         try:
             if (event_publishers == None):
                 return publishers            
             
-            items_remaining:Optional[int] = None # Do a lookup to the outbox on the message name
-            
             for handler in event_publishers:
+                
+                items_at_source = None
+                if (pending_message_counts != None and handler.event_name in pending_message_counts):
+                    items_at_source = pending_message_counts[handler.event_name]
+                
                 publisher = EventPublisherRegistration.Create(
                     event_name = handler.event_name, 
                     latest_version = handler.latest_version,
                     processing_type=handler.processing_type,
                     json_schema = None, # Do this dynamically from the DTO
                     de_duplication_enabled = handler.de_duplication_enabled,
-                    items_remaining_at_source = items_remaining,
+                    items_remaining_at_source = items_at_source,
                     max_concurrency=handler.max_concurrency_limit,
                     allow_publishing_without_subscribers = handler.allow_publishing_without_subscribers)
                 
@@ -170,7 +188,7 @@ class SyncService():
             return []
 
 
-    def build_command_raisers(self, command_raisers:List[CommandRaiserBase]):
+    def build_command_raisers(self, command_raisers:List[CommandRaiserBase], pending_message_counts:dict):
         raisers = []
         
         items_remaining:Optional[int] = None # Do a lookup to the outbox on the message name
@@ -180,10 +198,15 @@ class SyncService():
                 return raisers            
                   
             for handler in command_raisers:
+                
+                items_at_source = None
+                if (pending_message_counts != None and handler.command_name in pending_message_counts):
+                    items_at_source = pending_message_counts[handler.command_name]
+                    
                 subscription = CommandRaiserRegistration.Create(
                     command_name = handler.command_name,
                     command_version = handler.command_version,
-                    items_remaining_at_source = items_remaining)
+                    items_remaining_at_source=items_at_source)
                 
                 raisers.append(subscription)     
                            
