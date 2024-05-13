@@ -22,6 +22,7 @@ class CommandRaiserBase(ABC, Generic[T]):
     processor_name:str     
     command_version:Optional[str] = None
     de_duplication_enabled:Optional[bool] = None
+    de_duplication_delay_in_minutes: Optional[int] = None
     
     @staticmethod
     def hash_and_convert_to_string(content: Optional[str]) -> Optional[str]:
@@ -34,7 +35,8 @@ class CommandRaiserBase(ABC, Generic[T]):
 
         return hash_hex
    
-    def __init__(self, processor_name:str, command_name:str, request_type:type, command_version:Optional[str] = None, de_duplication_enabled:Optional[bool] = None) -> None:
+    def __init__(self, processor_name:str, command_name:str, request_type:type, command_version:Optional[str] = None,
+                 de_duplication_enabled:Optional[bool] = None, de_duplication_delay_in_minutes: Optional[int] = None) -> None:
         super().__init__()
         
         config_reader = ConfigReader()
@@ -47,6 +49,7 @@ class CommandRaiserBase(ABC, Generic[T]):
         self.processor_name = processor_name
         self.command_name = command_name
         self.de_duplication_enabled = de_duplication_enabled
+        self.de_duplication_delay_in_minutes = de_duplication_delay_in_minutes
         
     def build_unique_header(self, request_object:T) -> Optional[str]:
         return None
@@ -78,6 +81,7 @@ class CommandRaiserBase(ABC, Generic[T]):
             source_trace_message_id=source_trace_message_id,
             priority=priority,
             de_duplication_enabled=self.de_duplication_enabled,
+            de_duplication_delay_in_seconds=self.de_duplication_delay_in_minutes,
             unique_header_hash=unique_header_hash)
         
         return envelope

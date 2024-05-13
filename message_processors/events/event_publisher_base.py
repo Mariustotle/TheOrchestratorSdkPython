@@ -24,10 +24,11 @@ class EventPublisherBase(ABC, Generic[T]):
     processor_name:str
     processing_type:ProcessingType    
     
-    latest_version:Optional[str] = None
-    de_duplication_enabled:Optional[bool] = None
-    allow_publishing_without_subscribers:Optional[bool] = None
-    require_new_subscriber_approval:Optional[bool] = None
+    latest_version: Optional[str] = None
+    de_duplication_enabled: Optional[bool] = None
+    de_duplication_delay_in_minutes: Optional[int] = None
+    allow_publishing_without_subscribers: Optional[bool] = None
+    require_new_subscriber_approval: Optional[bool] = None
     max_concurrency_limit: Optional[int] = None
     
     @staticmethod
@@ -45,7 +46,7 @@ class EventPublisherBase(ABC, Generic[T]):
                  de_duplication_enabled:Optional[bool] = None, allow_publishing_without_subscribers:Optional[bool] = None,
                  processing_type:Optional[ProcessingType] = ProcessingType.Concurrent,
                  require_new_subscriber_approval:Optional[bool] = None,
-                 max_concurrency_limit:Optional[int] = None) -> None:
+                 max_concurrency_limit:Optional[int] = None, de_duplication_delay_in_minutes: Optional[int] = None) -> None:
         super().__init__()
         
         config_reader = ConfigReader()
@@ -59,6 +60,7 @@ class EventPublisherBase(ABC, Generic[T]):
         self.event_name = event_name
         self.processing_type = processing_type
         self.de_duplication_enabled = de_duplication_enabled
+        self.de_duplication_delay_in_minutes = de_duplication_delay_in_minutes
         self.allow_publishing_without_subscribers = allow_publishing_without_subscribers
         self.require_new_subscriber_approval = require_new_subscriber_approval
         self.max_concurrency_limit = max_concurrency_limit
@@ -92,6 +94,7 @@ class EventPublisherBase(ABC, Generic[T]):
             source_trace_message_id=source_trace_message_id,
             priority=priority,
             de_duplication_enabled=self.de_duplication_enabled,
+            de_duplication_delay_in_seconds=self.de_duplication_delay_in_minutes,
             unique_header_hash=unique_header_hash)
        
         return envelope

@@ -152,6 +152,7 @@ class SyncService():
                     processing_type=handler.processing_type,
                     json_schema = None, # Do this dynamically from the DTO
                     de_duplication_enabled = handler.de_duplication_enabled,
+                    de_duplication_delay_in_minutes = handler.de_duplication_delay_in_minutes,
                     items_remaining_at_source = items_at_source,
                     max_concurrency=handler.max_concurrency_limit,
                     allow_publishing_without_subscribers = handler.allow_publishing_without_subscribers)
@@ -231,6 +232,7 @@ class SyncService():
                     procesing_type = handler.processing_type,
                     dispatcher = handler.processor_name,
                     de_duplication_enabled = handler.de_duplication_enabled,
+                    de_duplication_delay_in_minutes = handler.de_duplication_delay_in_minutes,
                     json_schema = None, # Do this dynamically from the DTO
                     latest_version = handler.latest_version,
                     max_concurrency = handler.max_concurrency_limit,
