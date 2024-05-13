@@ -7,6 +7,7 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 from uuid import uuid4
 from typing import List
+from datetime import datetime, timedelta, timezone
 
 class ReadyForSubmissionBatch():
     messages_ready:int
@@ -104,6 +105,10 @@ class MessageOutboxRepository(RepositoryBase):
         message.process_count = 0
         message.is_completed = False
         
+        if (message.de_duplication_enabled and message.de_duplication_delay_in_seconds > 0):
+            time_delta = timedelta(minutes=message.de_duplication_delay_in_seconds)
+            message.eligible_after = datetime.utcnow() + time_delta
+        
         self.session.add(message)
         
     async def remove_duplicates_pending_submission(self):
@@ -135,13 +140,16 @@ class MessageOutboxRepository(RepositoryBase):
 
     async def get_next_messages(self, batch_size: int) -> ReadyForSubmissionBatch:
        
-        ready_count = self.session.query(MessageOutboxEntity).filter(MessageOutboxEntity.status == OutboxStatus.Ready.name).count() # Add and is eligble
+        ready_count = self.session.query(MessageOutboxEntity).filter(MessageOutboxEntity.status == OutboxStatus.Ready.name,
+                (MessageOutboxEntity.eligible_after == None) | (MessageOutboxEntity.eligible_after < datetime.utcnow())).count()
         not_completed_count = self.session.query(MessageOutboxEntity).filter(MessageOutboxEntity.is_completed == False).count()
         need_intervention_count = self.session.query(MessageOutboxEntity).filter(MessageOutboxEntity.status == OutboxStatus.Preperation.name).count() 
         
-        # Add to filter, eligble is None or eligble < datetime.utcnow()
         next_messages = self.session.query(MessageOutboxEntity)\
-            .filter(MessageOutboxEntity.status == OutboxStatus.Ready.name)\
+            .filter(
+                MessageOutboxEntity.status == OutboxStatus.Ready.name,
+                (MessageOutboxEntity.eligible_after == None) | (MessageOutboxEntity.eligible_after < datetime.utcnow())
+            )\
             .order_by(MessageOutboxEntity.priority.desc(), MessageOutboxEntity.created_date)\
             .limit(batch_size)\
             .all()

@@ -18,6 +18,7 @@ class MessageOutboxEntity(MessageEntityBase):
     message_name = Column(String, nullable=False)
     handler_name = Column(String, nullable=False)
     de_duplication_enabled = Column(Boolean, nullable=False)
+    de_duplication_delay_in_seconds = Column(Integer, nullable=True)
     unique_header_hash = Column(String, nullable=True)
     source_trace_message_id = Column(String, nullable=True)
     process_count = Column(Integer, nullable=False)
@@ -36,9 +37,10 @@ class MessageOutboxEntity(MessageEntityBase):
             handler_name:str,
             message_name:str,
             source_trace_message_id:str,
-            de_duplication_enabled:bool,
+            de_duplication_enabled:bool,            
             unique_header_hash:Optional[str],
             priority:Optional[int],
+            de_duplication_delay_in_seconds:Optional[int] = None,
             eligible_after:Optional[datetime] = None):      
         
         return MessageOutboxEntity(
@@ -49,6 +51,7 @@ class MessageOutboxEntity(MessageEntityBase):
             source_trace_message_id = source_trace_message_id,
             process_count = 0,
             de_duplication_enabled = de_duplication_enabled,
+            de_duplication_delay_in_seconds = de_duplication_delay_in_seconds,
             unique_header_hash = unique_header_hash,
             eligible_after = eligible_after,
             created_date = datetime.utcnow(),

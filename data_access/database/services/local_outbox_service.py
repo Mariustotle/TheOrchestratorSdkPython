@@ -102,6 +102,7 @@ class LocalOutboxService:
                     source_trace_message_id=message.source_trace_message_id,
                     priority=message.priority, message_name=message.message_name,
                     de_duplication_enabled=message.de_duplication_enabled,
+                    de_duplication_delay_in_seconds=message.de_duplication_delay_in_seconds,
                     unique_header_hash=message.unique_header_hash)
                 
             await submitter.submit(envelope)
@@ -173,7 +174,7 @@ class LocalOutboxService:
                 
             batch_result:ReadyForSubmissionBatch = await asyncio.wait_for(outbox_repo.get_next_messages(batch_size=self.BATCH_SIZE), timeout=60) 
             
-            if (batch_result == None or len(batch_result.messages) <= 0):
+            if (batch_result == None or batch_result.messages_not_completed <= 0):
                 another_batch = False
                 session.rollback()
                 
