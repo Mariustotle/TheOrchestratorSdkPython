@@ -20,7 +20,9 @@ logger = Logger.get_instance()
 class LocalOutboxService:
     
     lock = asyncio.Lock()
-    is_busy:bool = False
+    is_busy_publishing:bool = False
+    busy_with_batch:bool = False
+    
     message_database:MessageDatabase = None    
     remaining_count:Optional[int] = None    
     min_cleanup_interval_in_hours:int = 1
@@ -33,7 +35,7 @@ class LocalOutboxService:
     CONCURENT_LIMIT:int = 10
     
     def __init__(self, message_database:MessageDatabase): 
-        self.is_busy = False
+        self.is_busy_publishing = False
         self.message_database = message_database
         
     def update_message_counter_on_success(self, message_name):
@@ -69,9 +71,9 @@ class LocalOutboxService:
     async def check_for_messages_that_are_ready(self):         
         
         async with LocalOutboxService.lock:            
-            if LocalOutboxService.is_busy:
+            if LocalOutboxService.is_busy_publishing:
                 return
-            LocalOutboxService.is_busy = True           
+            LocalOutboxService.is_busy_publishing = True           
 
         try:           
             self.remaining_count = None
@@ -83,7 +85,7 @@ class LocalOutboxService:
             logger.error("Failed to process next batch of outbox items", ex)
         
         async with LocalOutboxService.lock: 
-            LocalOutboxService.is_busy = False
+            LocalOutboxService.is_busy_publishing = False
             
     async def process_item(self, session:Session, submitter:ApiSubmission, message:MessageOutboxEntity, content:str) -> bool: 
         try:
@@ -141,90 +143,98 @@ class LocalOutboxService:
    
     async def process_next_batch(self):
         
-        delay_next_request = False
-        another_batch = True
-        
-        try:     
+        if await LocalOutboxService.lock.acquire():
+            logger.info('Lock for outbox batch release aquired')
             
-            previous_batch_remaining = self.remaining_count
-        
-            remaining:int = None
-            ready:int = None
-            api_submission = ApiSubmission()
-            success_count = 0
-            slack_count = 0
-            error_occurred = False            
+            delay_next_request = False
+            another_batch = True
+                
+            try:
+                        
+                previous_batch_remaining = self.remaining_count
             
-            session = self.message_database.db_session_maker()
-             
-            outbox_repo = MessageOutboxRepository(session, None)
-            do_cleanup:bool = True if self.message_database.last_cleanup_timestamp is None or (datetime.utcnow() - self.message_database.last_cleanup_timestamp) > timedelta(hours=self.min_cleanup_interval_in_hours) else False
-           
-            try:                       
-                if do_cleanup:
-                    await asyncio.wait_for(self.cleanup(outbox_repo), timeout=120)
+                remaining:int = None
+                ready:int = None
+                api_submission = ApiSubmission()
+                success_count = 0
+                slack_count = 0
+                error_occurred = False            
+                
+                session = self.message_database.db_session_maker()
+                
+                outbox_repo = MessageOutboxRepository(session, None)
+                do_cleanup:bool = True if self.message_database.last_cleanup_timestamp is None or (datetime.utcnow() - self.message_database.last_cleanup_timestamp) > timedelta(hours=self.min_cleanup_interval_in_hours) else False
+            
+                try:                       
+                    if do_cleanup:
+                        await asyncio.wait_for(self.cleanup(outbox_repo), timeout=120)
+                        
+                    await asyncio.wait_for(outbox_repo.remove_duplicates_pending_submission(), timeout=30)  
+                    await asyncio.wait_for(self.update_remaining_message_counters(outbox_repo), timeout=30)             
+                    session.commit()
                     
-                await asyncio.wait_for(outbox_repo.remove_duplicates_pending_submission(), timeout=30)  
-                await asyncio.wait_for(self.update_remaining_message_counters(outbox_repo), timeout=30)             
-                session.commit()
-                
-            except asyncio.TimeoutError:
-                self.pending_message_counts = None
-                logger.warn(f'Timeout while cleaning up outbox (Cleanup | Remove Duplicates)] - Not stopping, continuing with outbox processing.')
-                
-            batch_result:ReadyForSubmissionBatch = await asyncio.wait_for(outbox_repo.get_next_messages(batch_size=self.BATCH_SIZE), timeout=60) 
-            
-            if (batch_result == None or batch_result.messages_not_completed <= 0):
-                another_batch = False
-                session.rollback()
-                
-            else:
-                logger.info(f'OUTBOX Queue Summary >>>> Remaining [{len(batch_result.messages)}/{batch_result.messages_not_completed}] Ready [{batch_result.messages_ready}] Intervention [{batch_result.messages_needing_intervention}] <<<<')
-            
-                self.remaining_count = batch_result.messages_not_completed
-                remaining = self.remaining_count
-                ready = batch_result.messages_ready                    
-                
-                while (len(batch_result.messages) > 0):
-                    batch_size = min(self.CONCURENT_LIMIT, len(batch_result.messages))
-                    concurrent_subset = [batch_result.messages.pop() for _ in range(batch_size)]
-                    successes = await self.process_all(concurrent_subset, session, api_submission)
+                except asyncio.TimeoutError:
+                    self.pending_message_counts = None
+                    logger.warn(f'Timeout while cleaning up outbox (Cleanup | Remove Duplicates)] - Not stopping, continuing with outbox processing.')
                     
-                    success_count += successes        
-                    slack_count += successes
+                batch_result:ReadyForSubmissionBatch = await asyncio.wait_for(outbox_repo.get_next_messages(batch_size=self.BATCH_SIZE), timeout=60) 
                 
-                    if slack_count >= self.SLACK_MARKER:
-                        await asyncio.sleep(self.SLACK_WAIT_TIME_IN_SECONDS)
-                        slack_count = 0
+                if (batch_result == None or batch_result.messages_not_completed <= 0):
+                    another_batch = False
+                    session.rollback()
+                    
+                else:
+                    logger.info(f'OUTBOX Queue Summary >>>> Remaining [{len(batch_result.messages)}/{batch_result.messages_not_completed}] Ready [{batch_result.messages_ready}] Intervention [{batch_result.messages_needing_intervention}] <<<<')
+                
+                    self.remaining_count = batch_result.messages_not_completed
+                    remaining = self.remaining_count
+                    ready = batch_result.messages_ready                    
+                    
+                    while (len(batch_result.messages) > 0):
+                        batch_size = min(self.CONCURENT_LIMIT, len(batch_result.messages))
+                        concurrent_subset = [batch_result.messages.pop() for _ in range(batch_size)]
+                        successes = await self.process_all(concurrent_subset, session, api_submission)
+                        
+                        success_count += successes        
+                        slack_count += successes
+                    
+                        if slack_count >= self.SLACK_MARKER:
+                            await asyncio.sleep(self.SLACK_WAIT_TIME_IN_SECONDS)
+                            slack_count = 0
 
-                    if (batch_size > 0 and successes < batch_size):
-                        error_occurred = True
-                        break              
+                        if (batch_size > 0 and successes < batch_size):
+                            error_occurred = True
+                            break              
 
-                if (remaining != None and (remaining - success_count) <= 0):                
-                    another_batch = False                
-                
-                something_went_wrong_now = remaining == None or ready == None or error_occurred == True
-                something_went_wrong_previously = previous_batch_remaining != None and remaining == previous_batch_remaining                
-                no_remaining_items_are_ready = True if remaining != None and ready != None and ready == 0 else False
-                
-                delay_next_request = something_went_wrong_now or something_went_wrong_previously or no_remaining_items_are_ready
+                    if (remaining != None and (remaining - success_count) <= 0):                
+                        another_batch = False                
+                    
+                    something_went_wrong_now = remaining == None or ready == None or error_occurred == True
+                    something_went_wrong_previously = previous_batch_remaining != None and remaining == previous_batch_remaining                
+                    no_remaining_items_are_ready = True if remaining != None and ready != None and ready == 0 else False
+                    
+                    delay_next_request = something_went_wrong_now or something_went_wrong_previously or no_remaining_items_are_ready
 
-                session.commit()
-       
-        except Exception as ex:     
-                logger.error(f"Oops! {ex.__class__} process_next_batch: {ex}")
-                logger.info(f'MESSAGE DB POOL STATUS: [{self.message_database.db_engine.pool.status()}]')
-                session.rollback()
-                delay_next_request = True                
-                
-        finally:
+                    session.commit()
             
-            delay = self.BATCH_WAIT_TIME_IN_SECONDS if delay_next_request else 1
-            await asyncio.sleep(delay)                
-           
-            if (another_batch):
-                asyncio.create_task(self.process_next_batch())            
+            except Exception as ex:     
+                    logger.error(f"Oops! {ex.__class__} process_next_batch: {ex}")
+                    logger.info(f'MESSAGE DB POOL STATUS: [{self.message_database.db_engine.pool.status()}]')
+                    session.rollback()
+                    delay_next_request = True                         
+                
+            finally:
+                logger.info("Lock for outbox batch submit released.")
+                LocalOutboxService.lock.release()
+                
+                delay = self.BATCH_WAIT_TIME_IN_SECONDS if delay_next_request else 1
+                await asyncio.sleep(delay)                
+            
+                if (another_batch):
+                    asyncio.create_task(self.process_next_batch())                       
+
+        else:
+            logger.error("Failed to acquire the lock.")
 
             
     async def cleanup(self, outbox_repo: MessageOutboxRepository):  
