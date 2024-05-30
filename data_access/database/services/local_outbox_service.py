@@ -220,6 +220,7 @@ class LocalOutboxService:
                 
         finally:
             
+            session.close()
             delay = self.BATCH_WAIT_TIME_IN_SECONDS if delay_next_request else 1
             await asyncio.sleep(delay)                
            
