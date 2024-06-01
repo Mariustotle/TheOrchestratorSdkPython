@@ -153,7 +153,8 @@ class LocalOutboxService:
             api_submission = ApiSubmission()
             success_count = 0
             slack_count = 0
-            error_occurred = False            
+            error_occurred = False       
+            batch_size_at_start = 0     
             
             session = self.message_database.db_session_maker()
              
@@ -183,7 +184,9 @@ class LocalOutboxService:
             
                 self.remaining_count = batch_result.messages_not_completed
                 remaining = self.remaining_count
-                ready = batch_result.messages_ready                    
+                ready = batch_result.messages_ready                
+                
+                batch_size_at_start = len(batch_result.messages)                                
                 
                 while (len(batch_result.messages) > 0):
                     batch_size = min(self.CONCURENT_LIMIT, len(batch_result.messages))
@@ -221,6 +224,10 @@ class LocalOutboxService:
         finally:
             
             session.close()
+            
+            if (success_count > batch_size_at_start):
+                logger.warn(f"More mesages submitted [{success_count}] than there where messages in the batch [{batch_size_at_start}]. This could indicate duplicate submissions.")
+            
             delay = self.BATCH_WAIT_TIME_IN_SECONDS if delay_next_request else 1
             await asyncio.sleep(delay)                
            
