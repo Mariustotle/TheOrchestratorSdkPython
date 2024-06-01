@@ -31,6 +31,7 @@ class LocalOutboxService:
     SLACK_MARKER:int = 20
     SLACK_WAIT_TIME_IN_SECONDS:int = 1
     CONCURENT_LIMIT:int = 10
+    DB_SLEEP_IN_SECONDS:int = 5
     
     def __init__(self, message_database:MessageDatabase): 
         self.is_busy = False
@@ -137,17 +138,46 @@ class LocalOutboxService:
         results = await asyncio.gather(*tasks)        
         successes = sum(results)
         
-        return successes   
+        return successes
+    
+    async def throttle_database_connections(self):
+        
+        max_delays = 10
+        check_pooling = True
+        delay_counter = 0
+        db_pool = self.message_database.db_engine.pool
+        
+        if (db_pool == None):
+            return
+        
+        while (check_pooling and (delay_counter < max_delays)):               
+            
+            pool_limit = db_pool.size()
+            pool_overflow = abs(db_pool.overflow()) + 1
+            pool_in_use =  db_pool.checkedout()
+            
+            danger_zone = pool_overflow / 2
+            
+            if (pool_in_use > pool_limit):
+                logger.warn(f"There are more connections open [{pool_in_use}] than the limit [{pool_limit}] it will start to fail when it reaches [{pool_limit + pool_overflow}]")
+            
+            if pool_in_use < (pool_limit + danger_zone):
+                check_pooling = False
+                
+            else:
+                delay_counter += 1
+                logger.warn(f"Overflow is reaching dangerous levels. Delaying batch submission [{delay_counter}/{max_delays}]. The Limit: [{pool_limit}], Total Connections: [{pool_in_use}] and Overflow Threshold: [{pool_limit + pool_overflow}]")
+                await asyncio.sleep(self.DB_SLEEP_IN_SECONDS)
+                           
    
     async def process_next_batch(self):
         
         delay_next_request = False
         another_batch = True
         
-        try:     
+        try:
             
-            previous_batch_remaining = self.remaining_count
-        
+            previous_batch_remaining = self.remaining_count        
             remaining:int = None
             ready:int = None
             api_submission = ApiSubmission()
@@ -171,7 +201,9 @@ class LocalOutboxService:
                 
             except asyncio.TimeoutError:
                 self.pending_message_counts = None
-                logger.warn(f'Timeout while cleaning up outbox (Cleanup | Remove Duplicates)] - Not stopping, continuing with outbox processing.')
+                logger.warn(f'Timeout while cleaning up outbox (Cleanup | Remove Duplicates)] - Not stopping, continuing with outbox processing.')                
+                
+            await self.throttle_database_connections()
                 
             batch_result:ReadyForSubmissionBatch = await asyncio.wait_for(outbox_repo.get_next_messages(batch_size=self.BATCH_SIZE), timeout=60) 
             
@@ -181,7 +213,7 @@ class LocalOutboxService:
                 
             else:
                 logger.info(f'OUTBOX Queue Summary >>>> Remaining [{len(batch_result.messages)}/{batch_result.messages_not_completed}] Ready [{batch_result.messages_ready}] Intervention [{batch_result.messages_needing_intervention}] <<<<')
-            
+                
                 self.remaining_count = batch_result.messages_not_completed
                 remaining = self.remaining_count
                 ready = batch_result.messages_ready                
