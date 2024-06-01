@@ -29,7 +29,7 @@ class LocalOutboxService:
     BATCH_SIZE:int = 80
     BATCH_WAIT_TIME_IN_SECONDS:int = 60
     SLACK_MARKER:int = 20
-    SLACK_WAIT_TIME_IN_SECONDS:int = 0.5
+    SLACK_WAIT_TIME_IN_SECONDS:int = 1
     CONCURENT_LIMIT:int = 10
     
     def __init__(self, message_database:MessageDatabase): 
@@ -229,11 +229,17 @@ class LocalOutboxService:
 
             
     async def cleanup(self, outbox_repo: MessageOutboxRepository):  
-        try:                        
-            await outbox_repo.delete_old_message_history() 
-            outbox_repo.session.commit()
+        try:
+            
+            isolated_session = self.message_database.db_session_maker()            
+            await outbox_repo.delete_old_message_history(isolated_session)
+            
+            isolated_session.commit()
             self.message_database.last_cleanup_timestamp = datetime.utcnow()
 
-        except Exception as ex: 
+        except Exception as ex:
+            isolated_session.rollback()
             logger.error(f'Failed to perform outbox local db cleanup. Details: {ex}')
-            raise
+        
+        finally:            
+            isolated_session.close()
