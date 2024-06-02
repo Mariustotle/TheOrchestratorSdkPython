@@ -32,6 +32,7 @@ class LocalOutboxService:
     SLACK_WAIT_TIME_IN_SECONDS:int = 1
     CONCURENT_LIMIT:int = 10
     DB_SLEEP_IN_SECONDS:int = 5
+    DB_POOL_OVERFLOW_THRESHOLD:int = 20
     
     def __init__(self, message_database:MessageDatabase): 
         self.is_busy = False
@@ -153,7 +154,7 @@ class LocalOutboxService:
         while (check_pooling and (delay_counter < max_delays)):               
             
             pool_limit = db_pool.size()
-            pool_overflow = abs(db_pool.overflow())
+            pool_overflow = self.DB_POOL_OVERFLOW_THRESHOLD
             pool_in_use =  db_pool.checkedout()
             
             danger_zone = (pool_overflow-pool_limit) / 2
