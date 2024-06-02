@@ -151,6 +151,7 @@ class LocalOutboxService:
         
         delay_next_request = False
         another_batch = True
+        error_occured = False
         
         try:
             
@@ -220,16 +221,16 @@ class LocalOutboxService:
                 if (remaining != None and (remaining - success_count) <= 0):                
                     another_batch = False                
                 
-                something_went_wrong_now = remaining == None or ready == None or error_occurred == True
+                error_occured = remaining == None or ready == None or error_occurred == True
                 something_went_wrong_previously = previous_batch_remaining != None and remaining == previous_batch_remaining                
                 no_remaining_items_are_ready = True if remaining != None and ready != None and ready == 0 else False
                 
-                delay_next_request = something_went_wrong_now or something_went_wrong_previously or no_remaining_items_are_ready
+                delay_next_request = error_occured or something_went_wrong_previously or no_remaining_items_are_ready
        
         except Exception as ex:     
                 logger.error(f"Oops! {ex.__class__} process_next_batch: {ex}")
                 logger.info(f'MESSAGE DB POOL STATUS: [{self.message_database.db_engine.pool.status()}]')
-                delay_next_request = True                
+                delay_next_request, error_occured = True
                 
         finally:
             
@@ -238,11 +239,18 @@ class LocalOutboxService:
             if (success_count > batch_size_at_start):
                 logger.warn(f"More mesages submitted [{success_count}] than there where messages in the batch [{batch_size_at_start}]. This could indicate duplicate submissions.")
             
-            delay = self.BATCH_WAIT_TIME_IN_SECONDS if delay_next_request else 1
-            await asyncio.sleep(delay)                
+            
+            if (delay_next_request):
+                if (error_occured):
+                    logger.warn(f'Error occured trying to submit a batch of messages to server. Delaying next batch submission with [{self.BATCH_WAIT_TIME_IN_SECONDS}]s.')
+                
+                await asyncio.sleep(self.BATCH_WAIT_TIME_IN_SECONDS)
+            
+            else:
+                 asyncio.sleep(1)                      
            
             if (another_batch):
-                asyncio.create_task(self.process_next_batch())            
+                await asyncio.create_task(self.process_next_batch())            
 
             
     async def cleanup(self, outbox_repo: MessageOutboxRepository):  
