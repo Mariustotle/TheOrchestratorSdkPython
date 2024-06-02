@@ -21,9 +21,7 @@ logger = Logger.get_instance()
 class LocalOutboxService:
     
     lock = asyncio.Lock()
-    is_busy_publishing:bool = False
-    busy_with_batch:bool = False
-    
+    is_busy:bool = False
     message_database:MessageDatabase = None    
     remaining_count:Optional[int] = None    
     min_cleanup_interval_in_hours:int = 1
@@ -38,7 +36,7 @@ class LocalOutboxService:
     MESSAGE_DELAY_ON_FAILURE_IN_MINUTES:int = 5
     
     def __init__(self, message_database:MessageDatabase): 
-        self.is_busy_publishing = False
+        self.is_busy = False
         self.message_database = message_database
         self.pooling_utility = PoolingUtility(logger, self.message_database.db_engine)
         
@@ -75,9 +73,9 @@ class LocalOutboxService:
     async def check_for_messages_that_are_ready(self):         
         
         async with LocalOutboxService.lock:            
-            if LocalOutboxService.is_busy_publishing:
+            if LocalOutboxService.is_busy:
                 return
-            LocalOutboxService.is_busy_publishing = True           
+            LocalOutboxService.is_busy = True           
 
         try:           
             self.remaining_count = None
@@ -89,7 +87,7 @@ class LocalOutboxService:
             logger.error("Failed to process next batch of outbox items", ex)
         
         async with LocalOutboxService.lock: 
-            LocalOutboxService.is_busy_publishing = False
+            LocalOutboxService.is_busy = False
             
     async def process_item(self, submitter:ApiSubmission, message:MessageOutboxEntity, content:str) -> bool: 
         try:
@@ -166,25 +164,14 @@ class LocalOutboxService:
             error_occurred = False       
             batch_size_at_start = 0     
             
-                remaining:int = None
-                ready:int = None
-                api_submission = ApiSubmission()
-                success_count = 0
-                slack_count = 0
-                error_occurred = False            
-                
-                session = self.message_database.db_session_maker()
-                
-                outbox_repo = MessageOutboxRepository(session, None)
-                do_cleanup:bool = True if self.message_database.last_cleanup_timestamp is None or (datetime.utcnow() - self.message_database.last_cleanup_timestamp) > timedelta(hours=self.min_cleanup_interval_in_hours) else False
-            
-                try:                       
-                    if do_cleanup:
-                        await asyncio.wait_for(self.cleanup(outbox_repo), timeout=120)
-                        
-                    await asyncio.wait_for(outbox_repo.remove_duplicates_pending_submission(), timeout=30)  
-                    await asyncio.wait_for(self.update_remaining_message_counters(outbox_repo), timeout=30)             
-                    session.commit()
+            session = self.message_database.db_session_maker()
+             
+            outbox_repo = MessageOutboxRepository(session, None)
+            do_cleanup:bool = True if self.message_database.last_cleanup_timestamp is None or (datetime.utcnow() - self.message_database.last_cleanup_timestamp) > timedelta(hours=self.min_cleanup_interval_in_hours) else False
+           
+            try:                       
+                if do_cleanup:
+                    await asyncio.wait_for(self.cleanup(outbox_repo), timeout=120)
                     
                 await asyncio.wait_for(outbox_repo.remove_duplicates_pending_submission(), timeout=30)  
                 await asyncio.wait_for(self.update_remaining_message_counters(outbox_repo), timeout=30)             
@@ -220,34 +207,16 @@ class LocalOutboxService:
                     
                     session.commit()
                     
-                batch_result:ReadyForSubmissionBatch = await asyncio.wait_for(outbox_repo.get_next_messages(batch_size=self.BATCH_SIZE), timeout=60) 
+                    success_count += successes        
+                    slack_count += successes
                 
-                if (batch_result == None or batch_result.messages_not_completed <= 0):
-                    another_batch = False
-                    session.rollback()
-                    
-                else:
-                    logger.info(f'OUTBOX Queue Summary >>>> Remaining [{len(batch_result.messages)}/{batch_result.messages_not_completed}] Ready [{batch_result.messages_ready}] Intervention [{batch_result.messages_needing_intervention}] <<<<')
-                
-                    self.remaining_count = batch_result.messages_not_completed
-                    remaining = self.remaining_count
-                    ready = batch_result.messages_ready                    
-                    
-                    while (len(batch_result.messages) > 0):
-                        batch_size = min(self.CONCURENT_LIMIT, len(batch_result.messages))
-                        concurrent_subset = [batch_result.messages.pop() for _ in range(batch_size)]
-                        successes = await self.process_all(concurrent_subset, session, api_submission)
-                        
-                        success_count += successes        
-                        slack_count += successes
-                    
-                        if slack_count >= self.SLACK_MARKER:
-                            await asyncio.sleep(self.SLACK_WAIT_TIME_IN_SECONDS)
-                            slack_count = 0
+                    if slack_count >= self.SLACK_MARKER:
+                        await asyncio.sleep(self.SLACK_WAIT_TIME_IN_SECONDS)
+                        slack_count = 0
 
-                        if (batch_size > 0 and successes < batch_size):
-                            error_occurred = True
-                            break              
+                    if (batch_size > 0 and successes < batch_size):
+                        error_occurred = True
+                        break              
 
                 if (remaining != None and (remaining - success_count) <= 0):                
                     another_batch = False                
