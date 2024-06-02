@@ -238,13 +238,15 @@ class LocalOutboxService:
             
             if (success_count > batch_size_at_start):
                 logger.warn(f"More mesages submitted [{success_count}] than there where messages in the batch [{batch_size_at_start}]. This could indicate duplicate submissions.")
-            
-            
+                        
             if (delay_next_request):
-                if (error_occured):
-                    logger.warn(f'Error occured trying to submit a batch of messages to server. Delaying next batch submission with [{self.BATCH_WAIT_TIME_IN_SECONDS}]s.')
+                delay = self.BATCH_WAIT_TIME_IN_SECONDS
                 
-                await asyncio.sleep(self.BATCH_WAIT_TIME_IN_SECONDS)
+                if (error_occured):
+                    delay = delay * 2
+                    logger.warn(f'Error occured trying to submit a batch of messages to server. Delaying next batch submission with [{delay}]s.')
+                
+                await asyncio.sleep(delay)
             
             else:
                  asyncio.sleep(1)                      
