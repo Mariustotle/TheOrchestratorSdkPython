@@ -142,7 +142,7 @@ class LocalOutboxService:
     
     async def throttle_database_connections(self):
         
-        max_delays = 10
+        max_delays = 15
         check_pooling = True
         delay_counter = 0
         db_pool = self.message_database.db_engine.pool
@@ -153,20 +153,20 @@ class LocalOutboxService:
         while (check_pooling and (delay_counter < max_delays)):               
             
             pool_limit = db_pool.size()
-            pool_overflow = abs(db_pool.overflow()) + 1
+            pool_overflow = abs(db_pool.overflow())
             pool_in_use =  db_pool.checkedout()
             
-            danger_zone = pool_overflow / 2
+            danger_zone = (pool_overflow-pool_limit) / 2
             
             if (pool_in_use > pool_limit):
-                logger.warn(f"There are more connections open [{pool_in_use}] than the limit [{pool_limit}] it will start to fail when it reaches [{pool_limit + pool_overflow}]")
+                logger.warn(f"There are more connections open [{pool_in_use}] than the limit [{pool_limit}] it will start to fail when it reaches [{pool_overflow}]")
             
             if pool_in_use < (pool_limit + danger_zone):
                 check_pooling = False
                 
             else:
                 delay_counter += 1
-                logger.warn(f"Overflow is reaching dangerous levels. Delaying batch submission [{delay_counter}/{max_delays}]. The Limit: [{pool_limit}], Total Connections: [{pool_in_use}] and Overflow Threshold: [{pool_limit + pool_overflow}]")
+                logger.warn(f"Overflow is reaching dangerous levels. Delaying batch submission [{delay_counter}/{max_delays}]. The Limit: [{pool_limit}], Total Connections: [{pool_in_use}] and Overflow Threshold: [{pool_overflow}]")
                 await asyncio.sleep(self.DB_SLEEP_IN_SECONDS)
                            
    
