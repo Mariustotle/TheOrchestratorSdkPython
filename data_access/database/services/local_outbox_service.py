@@ -249,7 +249,7 @@ class LocalOutboxService:
                 await asyncio.sleep(delay)
             
             else:
-                 asyncio.sleep(1)                      
+                await asyncio.sleep(1)                      
            
             if (another_batch):
                 await asyncio.create_task(self.process_next_batch())            
