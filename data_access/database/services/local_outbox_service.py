@@ -23,17 +23,20 @@ class LocalOutboxService:
     lock = asyncio.Lock()
     is_busy:bool = False
     message_database:MessageDatabase = None    
-    remaining_count:Optional[int] = None    
+    remaining_count:Optional[int] = None
+    ready_count:Optional[int] = None
     min_cleanup_interval_in_hours:int = 1
     pending_message_counts:dict = None    
     pooling_utility:PoolingUtility = None
+    
+    batch_error_count:int = 0
+    batch_concurrent_error_count:int = 0   
     
     BATCH_SIZE:int = 80
     BATCH_WAIT_TIME_IN_SECONDS:int = 60
     SLACK_MARKER:int = 20
     SLACK_WAIT_TIME_IN_SECONDS:int = 1
     CONCURENT_LIMIT:int = 10
-    MESSAGE_DELAY_ON_FAILURE_IN_MINUTES:int = 5
     
     def __init__(self, message_database:MessageDatabase): 
         self.is_busy = False
@@ -89,6 +92,12 @@ class LocalOutboxService:
         async with LocalOutboxService.lock: 
             LocalOutboxService.is_busy = False
             
+    def calculate_exponential_backoff(self, process_count:int) -> datetime:        
+        delay_minutes = 2 ** (process_count * 1)
+        backoff_date = datetime.utcnow() + timedelta(minutes=delay_minutes)  
+        
+        return backoff_date
+            
     async def process_item(self, submitter:ApiSubmission, message:MessageOutboxEntity, content:str) -> bool: 
         try:
             
@@ -96,9 +105,8 @@ class LocalOutboxService:
             if (self.pending_message_counts != None and message.message_name in self.pending_message_counts):
                 items_at_source = self.pending_message_counts[message.message_name] - 1           
             
-            payload = self.update_message_process_fields(message.priority, items_at_source, content)
-        
-            message.process_count += 1                            
+            payload = self.update_message_process_fields(message.priority, items_at_source, content)        
+                                        
             envelope = PublishEnvelope.Create(
                     endpoint=message.endpoint,
                     publish_request=payload,
@@ -110,7 +118,10 @@ class LocalOutboxService:
                     unique_header_hash=message.unique_header_hash)
                 
             await submitter.submit(envelope)
-        
+
+            message.process_count += 1
+            self.batch_concurrent_error_count = 0
+            
             message.status = OutboxStatus.Published.name
             message.is_completed = True
             message.published_date = datetime.utcnow()
@@ -121,19 +132,24 @@ class LocalOutboxService:
         
         except RequestsConnectionError:
             logger.warn(f'Unable to connect to orchestrator server to publish the messages waiting to be sent. Will delay retry.')
-            logger.info(f'MESSAGE DB POOL STATUS: [{self.message_database.db_engine.pool.status()}]')           
+            logger.info(f'MESSAGE DB POOL STATUS: [{self.message_database.db_engine.pool.status()}]')
+            # Do not incriment or apply exponential backoff if a connection could not be established
 
             return False
             
         except Exception as ex:
             logger.error(f"Oops! {ex.__class__} occurred. Details: {ex}")
-            logger.info(f'MESSAGE DB POOL STATUS: [{self.message_database.db_engine.pool.status()}]')
+            logger.info(f'MESSAGE DB POOL STATUS: [{self.message_database.db_engine.pool.status()}]')  
             
-            delay_period = timedelta(minutes=self.MESSAGE_DELAY_ON_FAILURE_IN_MINUTES)
-            eligible_after = datetime.utcnow() + delay_period            
+            self.batch_concurrent_error_count += 1
+            self.batch_error_count += 1
+            
+            message.process_count += 1
+            eligible_after = self.calculate_exponential_backoff(message.process_count)
             message.eligible_after = eligible_after            
         
             return False
+        
    
     async def process_concurrent_batch(self, messages, api_submission:ApiSubmission) -> int:
 
@@ -155,14 +171,19 @@ class LocalOutboxService:
         
         try:
             
-            previous_batch_remaining = self.remaining_count        
+            previous_batch_ready = self.ready_count        
             remaining:int = None
             ready:int = None
             api_submission = ApiSubmission()
             success_count = 0
-            slack_count = 0
-            error_occurred = False       
-            batch_size_at_start = 0     
+            slack_count = 0            
+            batch_size_at_start = 0
+            
+            connection_error = False 
+            error_threshold_reached = False
+            
+            self.batch_error_count = 0
+            self.batch_concurrent_error_count = 0    
             
             session = self.message_database.db_session_maker()
              
@@ -214,18 +235,24 @@ class LocalOutboxService:
                         await asyncio.sleep(self.SLACK_WAIT_TIME_IN_SECONDS)
                         slack_count = 0
 
-                    if (batch_size > 0 and successes < batch_size):
-                        error_occurred = True
-                        break              
-
-                if (remaining != None and (remaining - success_count) <= 0):                
-                    another_batch = False                
+                    if (batch_size > 0 and success_count == 0 and self.batch_error_count == 0):
+                        connection_error = True
+                        break
                 
-                error_occured = remaining == None or ready == None or error_occurred == True
-                something_went_wrong_previously = previous_batch_remaining != None and remaining == previous_batch_remaining                
+                ## Stop if there is none remaining
+                if (ready != None and (ready - success_count) <= 0):                
+                    another_batch = False
+                
+                ## If all failed not due to connection error  
+                if (self.batch_error_count >= batch_size_at_start):
+                    delay_next_request = True 
+                    
                 no_remaining_items_are_ready = True if remaining != None and ready != None and ready == 0 else False
+                something_went_wrong_previously = previous_batch_ready != None and remaining == previous_batch_ready and success_count == 0
                 
-                delay_next_request = error_occured or something_went_wrong_previously or no_remaining_items_are_ready
+                if (connection_error or something_went_wrong_previously or no_remaining_items_are_ready):
+                    delay_next_request = True
+
        
         except Exception as ex:     
                 logger.error(f"Oops! {ex.__class__} process_next_batch: {ex}")
