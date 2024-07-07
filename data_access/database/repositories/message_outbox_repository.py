@@ -161,5 +161,5 @@ class MessageOutboxRepository(RepositoryBase):
         
         return bacth_result
     
-    async def delete_old_message_history(self):        
-        self.session.query(MessageOutboxEntity).filter(MessageOutboxEntity.is_completed == True).delete()
+    async def delete_old_message_history(self, session:Session):        
+        session.query(MessageOutboxEntity).filter(MessageOutboxEntity.is_completed == True).delete()
