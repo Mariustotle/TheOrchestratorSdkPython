@@ -35,7 +35,7 @@ class ApiSubmission:
             if not http_response.ok:
                 raise Exception(f"Failed to post on behalf of [{publish_request.handler_name}] to [{publish_request.endpoint}] with ErrorCode [{http_response.status_code}]. Error Details >> {http_response.content}")
             
-            logger.info(f'Successfully posted on behalf of [{publish_request.handler_name}] to the orchestrator - reference [{publish_request.reference}]')
+            logger.success(f'Successfully posted on behalf of [{publish_request.handler_name}] to the orchestrator - reference [{publish_request.reference}]')
 
         except Exception as ex:
             logger.error(ex)            
