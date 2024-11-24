@@ -1,23 +1,29 @@
-import logging
+from loguru import logger
+import os
 from orchestrator_sdk.seedworks.config_reader import ConfigReader
 from orchestrator_sdk.seedworks.contracts.logging import Logging
 
 def _get_log_level(level:str):
     
+    if (level.lower() == 'trace'):
+        return "TRACE"
+
     if (level.lower() == 'debug'):
-        return logging.DEBUG
+        return "DEBUG"
     
     if (level.lower() == 'info'):
-        return logging.INFO
+        return "INFO"
     
     if (level.lower() == 'warn'):
-        return logging.WARN
+        return "WARNING"
     
     if (level.lower() == 'error'):
-        return logging.ERROR
+        return "ERROR"
+    
+    if (level.lower() == 'critical'):
+        return "CRITICAL"
     
     raise ValueError('Unknown log level specified in configuration')
-
 
 class Logger:
     _logger_instance = None
@@ -33,32 +39,35 @@ class Logger:
         try:
             config_reader = ConfigReader()
 
-            logger_settings = config_reader.section('logging', Logging)
+            logger_settings = config_reader.section('logging', Logging)            
             log_level = _get_log_level(logger_settings.level)
+            log_filename =  logger_settings.file_name
+            log_file_path = logger_settings.path
+            max_file_size_mb = logger_settings.max_file_size_in_mb
+            max_number_of_files = logger_settings.max_number_of_files
 
-            logger = logging.getLogger('app-logger')
-            logger.setLevel(log_level)
+            os.makedirs(log_file_path, exist_ok=True)
 
-            # Check if handlers already exist
-            if logger.hasHandlers():
-                logger.handlers.clear()
+            log_format:str = None
 
-            file_handler = logging.FileHandler(logger_settings.path)
-            file_handler.setLevel(log_level)
+            if (hasattr(logger_settings, "log_format") == False or logger_settings.log_format == ""):
+                log_format = "{time:YYYY-MM-DD HH:mm:ss.SSS} | {level: <8} | {module}.{function}:{line} - {message}"
+            else:
+                log_format = logger_settings.log_format            
 
-            console_handler = logging.StreamHandler()
-            console_handler.setLevel(log_level)
-
-            formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-            file_handler.setFormatter(formatter)
-            console_handler.setFormatter(formatter)
-
-            logger.addHandler(file_handler)
-            logger.addHandler(console_handler)
+            logger.add(
+                f"{log_file_path}/{log_filename}",
+                level=log_level,
+                rotation=f"{max_file_size_mb} MB",
+                retention=max_number_of_files,
+                enqueue=True,  # Safe in multi-threaded apps
+                backtrace=True,
+                compression="zip",  # Compress old log files
+                format=log_format
+            )
 
             return logger
 
         except Exception as ex:
             print(f"Oops! {ex.__class__} occurred. Unable to initialize the logger. Details: {ex}")
             raise
-    
