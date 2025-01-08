@@ -9,7 +9,6 @@ from orchestrator_sdk.data_access.database.entities.message_outbox_entity import
 logger = Logger.get_instance()
 
 class PublishOutboxWith2PC(MessageBrokerPublisherInterface):
-    de_dup_delay_in_minutes:int = 30
     
     def _get_value_from_pydantic_property(self, pyprop):
         if (pyprop == None or len(pyprop) < 1):
@@ -24,12 +23,10 @@ class PublishOutboxWith2PC(MessageBrokerPublisherInterface):
                 raise Exception(f'To use the OutboxWith2PC publisher you need to impliment a UnitOfWork context')
             
             eligible_after = None            
-            if publish_instruction.de_duplication_enabled and publish_instruction.unique_header_hash is not None:
-                delay_period = timedelta(minutes=self.de_dup_delay_in_minutes)
-                eligible_after = datetime.utcnow() + delay_period            
-            
-            delay_period = timedelta(minutes=self.de_dup_delay_in_minutes)
-            
+            if publish_instruction.de_duplication_enabled and publish_instruction.unique_header_hash is not None and publish_instruction.de_duplication_delay_in_minutes > 0:
+                delay_period = timedelta(minutes=publish_instruction.de_duplication_delay_in_minutes)
+                eligible_after = datetime.utcnow() + delay_period
+                      
             pending_message = MessageOutboxEntity.Create(
                 handler_name = publish_instruction.handler_name,
                 endpoint=publish_instruction.endpoint,
