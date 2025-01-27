@@ -32,11 +32,11 @@ class LocalOutboxService:
     batch_error_count:int = 0
     batch_concurrent_error_count:int = 0   
     
-    BATCH_SIZE:int = 80
+    BATCH_SIZE:int = 60
     BATCH_WAIT_TIME_IN_SECONDS:int = 60
-    SLACK_MARKER:int = 20
+    SLACK_MARKER:int = 30
     SLACK_WAIT_TIME_IN_SECONDS:int = 1
-    CONCURENT_LIMIT:int = 10
+    CONCURENT_LIMIT:int = 15
     
     def __init__(self, message_database:MessageDatabase): 
         self.is_busy = False
@@ -210,7 +210,7 @@ class LocalOutboxService:
                 another_batch = False
                 
             else:
-                logger.info(f'OUTBOX Queue Summary >>>> Remaining [{len(batch_result.messages)}/{batch_result.messages_not_completed}] Ready [{batch_result.messages_ready}] Intervention [{batch_result.messages_needing_intervention}] <<<<')
+                logger.info(f'OUTBOX Queue: Loaded [{len(batch_result.messages)}] processing @[{self.CONCURENT_LIMIT}] concurrently. Remaining [{batch_result.messages_not_completed}] / Intervention required [{batch_result.messages_needing_intervention}]')
                 
                 self.remaining_count = batch_result.messages_not_completed
                 remaining = self.remaining_count
