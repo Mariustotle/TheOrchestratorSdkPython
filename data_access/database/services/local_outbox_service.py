@@ -14,7 +14,7 @@ from orchestrator_sdk.data_access.database.outbox_status import OutboxStatus
 from orchestrator_sdk.data_access.database.tools.pooling_utility import PoolingUtility
 from requests.exceptions import ConnectionError as RequestsConnectionError
 
-from orchestrator_sdk.seedworks.logger import Logger
+from sdk.logging.logger import Logger
 
 logger = Logger.get_instance()
 

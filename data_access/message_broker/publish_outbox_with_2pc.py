@@ -1,6 +1,6 @@
 from typing import Optional
 from datetime import datetime, timedelta
-from orchestrator_sdk.seedworks.logger import Logger
+from sdk.logging.logger import Logger
 from orchestrator_sdk.data_access.message_broker.message_broker_publisher_interface import MessageBrokerPublisherInterface
 from orchestrator_sdk.contracts.publishing.publish_envelope import PublishEnvelope
 from orchestrator_sdk.data_access.database.unit_of_work import UnitOfWork

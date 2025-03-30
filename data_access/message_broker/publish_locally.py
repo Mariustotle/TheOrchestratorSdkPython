@@ -1,5 +1,5 @@
 from typing import Optional
-from orchestrator_sdk.seedworks.logger import Logger
+from sdk.logging.logger import Logger
 from orchestrator_sdk.data_access.message_broker.message_broker_publisher_interface import MessageBrokerPublisherInterface
 from orchestrator_sdk.contracts.types.process_structure import ProcessStructure
 from orchestrator_sdk.contracts.requests.commands.raise_command_request import RaiseCommandRequest

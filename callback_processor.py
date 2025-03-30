@@ -9,7 +9,7 @@ from orchestrator_sdk.contracts.types.action_type import ActionType
 from orchestrator_sdk.contracts.types.message_type import MessageType
 from orchestrator_sdk.data_access.database.unit_of_work import UnitOfWork
 
-from orchestrator_sdk.seedworks.logger import Logger
+from sdk.logging.logger import Logger
 
 logger = Logger.get_instance()
 
