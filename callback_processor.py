@@ -9,6 +9,7 @@ from orchestrator_sdk.contracts.types.action_type import ActionType
 from orchestrator_sdk.contracts.types.message_type import MessageType
 from orchestrator_sdk.data_access.database.unit_of_work import UnitOfWork
 
+from orchestrator_sdk.seedworks.json_worker import JsonWorker
 from orchestrator_sdk.seedworks.logger import Logger
 
 logger = Logger.get_instance()
@@ -24,16 +25,8 @@ class CallbackProcessor:
     event_subscribers: dict[str, EventSubscriberBase] = {}
     event_publishers: dict[str, EventPublisherBase] = {}
     application_name: str
+    json_worker:JsonWorker = None
 
-    def from_json(self, json_payload, class_type):
-        if isinstance(json_payload, str):
-            if not json_payload.strip():
-                raise ValueError("Empty JSON payload received")
-            return class_type.parse_raw(json_payload)
-        elif isinstance(json_payload, (dict, list)):
-            return class_type.parse_obj(json_payload)
-        else:
-            raise TypeError("json_data must be a JSON document in str, bytes, bytearray, dict, or list format")    
         
     def __init__(self, command_raisers, command_processors, event_subscribers, event_publishers): 
         self.command_raisers = command_raisers
@@ -41,17 +34,18 @@ class CallbackProcessor:
         self.event_subscribers = event_subscribers
         self.event_publishers = event_publishers
         self.idempotence_service = IdempotenceService()
+        self.json_worker = JsonWorker()
    
-    async def _process_command(self, processor_name:str, reference:str, command_name:str, action_type:ActionType, json_payload:str, unit_of_work:UnitOfWork):        
+    async def _process_command(self, processor_name:str, reference:str, command_name:str, action_type:ActionType, json_content, unit_of_work:UnitOfWork):        
         handler = self.command_processors[processor_name]
         
         if (action_type == ActionType.Process):
-            request =  self.from_json(json_payload, handler.request_type)
+            request =  self.json_worker.convert_json_to_class(json_content, handler.request_type)
             return await handler.process(request=request, command_name=command_name, reference=reference, unit_of_work=unit_of_work)            
     
-    async def _process_event(self, processor_name:str, reference:str, event_name:str, json_payload:str, unit_of_work:UnitOfWork):        
+    async def _process_event(self, processor_name:str, reference:str, event_name:str, json_content, unit_of_work:UnitOfWork):        
         handler = self.event_subscribers[processor_name]        
-        request = self.from_json(json_payload, handler.request_type) if json_payload != None else None
+        request = self.json_worker.convert_json_to_class(json_content, handler.request_type)
         return await handler.process(request=request, event_name=event_name, reference=reference, unit_of_work=unit_of_work)    
         
     async def process(self, json_payload, unit_of_work:UnitOfWork):        
@@ -59,6 +53,8 @@ class CallbackProcessor:
         if (not CallbackContext.is_available()):
             raise Exception(f"Unable to process callback, please verify that you have added the [@init_callback_context_for_xxx] decoration to the API method")
         
+        json_content = self.json_worker.read_as_json(json_payload)
+
         message_id:uuid = uuid.UUID(CallbackContext.message_id.get()) if CallbackContext.message_id.get() is not None else None
         if unit_of_work is not None:           
             already_processed:bool = await self.idempotence_service.has_message_been_processed(message_id=message_id, unit_of_work=unit_of_work)
@@ -87,14 +83,14 @@ class CallbackProcessor:
         if (message_type == MessageType.Command):            
             response_object = await self._process_command(
                 processor_name=dispatcher, reference=reference, 
-                command_name=message_name, action_type=action, json_payload=json_payload,
+                command_name=message_name, action_type=action, json_content=json_content,
                 unit_of_work=unit_of_work
             )
         
         elif (message_type == MessageType.Event):
             response_object = await self._process_event(
                 processor_name=dispatcher, reference=reference, 
-                event_name=message_name, json_payload=json_payload,
+                event_name=message_name, json_content=json_content,
                 unit_of_work=unit_of_work
             )
             
