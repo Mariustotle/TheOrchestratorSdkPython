@@ -1,6 +1,7 @@
 from __future__ import annotations
 from datetime import datetime, timedelta
 from typing import Optional
+import random
 
 class ServiceUnavailableError(TimeoutError):
     """Raised when the simulator is deliberately put offline."""
@@ -9,8 +10,9 @@ class ServiceUnavailableError(TimeoutError):
 class AvailabilitySimulator:
     """Cycle between ‘online’ and ‘offline’ in one shared singleton."""
 
-    minutes_until_offline: int = 5
-    offline_in_minutes: int = 1
+    offline_after: int = 30
+    max_offline_minutes: int = 5
+    offline_duration:int[Optional] = None
 
     _instance: Optional["AvailabilitySimulator"] = None
     _last_cycle_start: datetime
@@ -40,8 +42,9 @@ class AvailabilitySimulator:
             self._last_cycle_start = now
             return True
 
-        if now - self._last_cycle_start > timedelta(minutes=self.minutes_until_offline):
-            self._available_after = now + timedelta(minutes=self.offline_in_minutes)
+        if now - self._last_cycle_start > timedelta(minutes=self.offline_after):
+            self.offline_duration = random.randint(1, self.max_offline_minutes)
+            self._available_after = now + timedelta(minutes=self.offline_duration)
             return False                    # just went offline
 
         return True                         # still online
