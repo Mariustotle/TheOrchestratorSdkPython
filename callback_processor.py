@@ -26,14 +26,14 @@ class CallbackProcessor:
     application_name: str
 
     def from_json(self, json_payload, class_type):
-        
         if isinstance(json_payload, str):
+            if not json_payload.strip():
+                raise ValueError("Empty JSON payload received")
             return class_type.parse_raw(json_payload)
-        
         elif isinstance(json_payload, (dict, list)):
-            return  class_type.parse_obj(json_payload)
+            return class_type.parse_obj(json_payload)
         else:
-            raise TypeError("json_data must be a JSON document in str, bytes, bytearray, dict, or list format")        
+            raise TypeError("json_data must be a JSON document in str, bytes, bytearray, dict, or list format")    
         
     def __init__(self, command_raisers, command_processors, event_subscribers, event_publishers): 
         self.command_raisers = command_raisers
