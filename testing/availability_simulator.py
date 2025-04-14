@@ -51,5 +51,5 @@ class AvailabilitySimulator:
 
     def simulate_unavailable(self) -> None:
         raise ServiceUnavailableError(
-            f"Service forced offline until {self._available_after.isoformat(timespec='seconds')} UTC"
+            f"Simulated client offline for [{self.offline_duration}] minutes until [{self._available_after.isoformat(timespec='seconds')} UTC]"
         )
