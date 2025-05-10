@@ -36,7 +36,7 @@ class AvailabilitySimulator:
         now = datetime.utcnow()
 
         if self._available_after and now < self._available_after:
-            failed_count += 1
+            self.failed_count += 1
             return False                    # still offline
 
         if self._available_after:           # outage ended
@@ -48,7 +48,7 @@ class AvailabilitySimulator:
         if now - self._last_cycle_start > timedelta(minutes=self.offline_after):
             self.offline_duration = random.randint(1, self.max_offline_minutes)
             self._available_after = now + timedelta(minutes=self.offline_duration)
-            failed_count += 1
+            self.failed_count += 1
             return False                    # just went offline
 
         return True                         # still online
