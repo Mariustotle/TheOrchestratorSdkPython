@@ -54,7 +54,7 @@ class AvailabilitySimulator:
         return True                         # still online
 
     def simulate_unavailable(self) -> None:
-        remaining_time = datetime.utcnow() - self._available_after
+        remaining_time = self._available_after - datetime.utcnow()
 
         raise ServiceUnavailableError(
             f"Simulated client offline, remaining outage time [{remaining_time.seconds}s] - Blocked Requests: [{self.failed_count}], Duration: [{self.offline_duration}min], Outage End: [{self._available_after.isoformat(timespec='seconds')}]."
