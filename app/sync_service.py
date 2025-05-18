@@ -8,10 +8,12 @@ from orchestrator_sdk.contracts.requests.events.event_publisher_registration imp
 from orchestrator_sdk.contracts.requests.events.event_subscriber_registration import EventSubscriberRegistration
 from orchestrator_sdk.contracts.requests.commands.command_processor_registration import CommandProcessorRegistration
 from orchestrator_sdk.contracts.requests.commands.command_raiser_registration import CommandRaiserRegistration
+from orchestrator_sdk.contracts.requests.stream.stream_subscriber_registration import StreamSubscriberRegistration
 from orchestrator_sdk.message_processors.events.event_subscriber_base import EventSubscriberBase
 from orchestrator_sdk.message_processors.events.event_publisher_base import EventPublisherBase
 from orchestrator_sdk.message_processors.commands.command_processor_base import CommandProcessorBase
 from orchestrator_sdk.message_processors.commands.command_raiser_base import CommandRaiserBase
+from orchestrator_sdk.message_processors.events.stream_subscriber_base import StreamSubscriberBase
 from orchestrator_sdk.data_access.database.repositories.message_outbox_repository import MessageOutboxRepository
 
 from orchestrator_sdk.data_access.database.message_database import message_database
@@ -41,7 +43,8 @@ class SyncService():
 
     def init(self, settings:OrchestratorConfig, endpoints:Endpoints, 
              event_subscribers:List[EventSubscriberBase] = None, event_publishers:List[EventPublisherBase] = None,
-             command_raisers:List[CommandProcessorBase] = None, command_processors:List[CommandProcessorBase] = None) -> bool:
+             command_raisers:List[CommandProcessorBase] = None, command_processors:List[CommandProcessorBase] = None,
+             stream_subscribers:List[StreamSubscriberBase] = None) -> bool:
 
         session:Session = message_database.db_session_maker()
         is_successfull:bool = False
@@ -62,6 +65,7 @@ class SyncService():
             event_publishers_reg = self.build_event_publishers(event_publishers, pending_message_counts) if event_publishers != None else None
             command_raisers_reg = self.build_command_raisers(command_raisers, pending_message_counts) if command_raisers != None else None
             command_processors_reg = self.build_command_processors(command_processors) if command_processors != None else None
+            stream_subscriptions_reg = self.build_stream_subscriptions(stream_subscribers) if stream_subscribers != None else None
             
             sync_application_message_processors_endpoint = endpoints.get_sync_application_message_processors()
             self.sync_applicaton_message_processors(
@@ -70,7 +74,9 @@ class SyncService():
                     event_subscribers = event_subscriptions_reg,
                     event_publishers = event_publishers_reg,
                     command_raisers = command_raisers_reg,
-                    command_processors = command_processors_reg)     
+                    command_processors = command_processors_reg,
+                    stream_subscribers = stream_subscriptions_reg
+                    )     
             
             self.SuccessfullyInitiatlized = True
             
@@ -108,12 +114,13 @@ class SyncService():
 
     def sync_applicaton_message_processors(self, endpoint:str, application_name:str, event_publishers:List[EventPublisherRegistration] = None,
                                            event_subscribers:List[EventSubscriberRegistration] = None, command_raisers:List[CommandRaiserRegistration] = None,
-                                           command_processors:List[CommandRaiserRegistration] = None) -> bool:
+                                           command_processors:List[CommandRaiserRegistration] = None, stream_subscribers:List[StreamSubscriberRegistration] = None
+                                           )-> bool:
                 
        	try:            
             application_sync = ApplicationSyncRequest.Create(
                 application_name=application_name, event_publishers=event_publishers, event_subscribers=event_subscribers,
-                command_raisers=command_raisers, command_processors=command_processors)      
+                command_raisers=command_raisers, command_processors=command_processors, stream_subscribers=stream_subscribers)      
            
             response = self._post(application_sync, endpoint)
             
@@ -121,8 +128,9 @@ class SyncService():
             event_subscriber_count = len(event_subscribers) if event_subscribers != None else 0
             command_raiser_count = len(command_raisers) if command_raisers != None else 0
             command_processor_count = len(command_processors) if command_processors != None else 0
+            stream_subscriber_count = len(stream_subscribers) if stream_subscribers != None else 0
             
-            logger.info(f'Message Proceessors Syncronized. Event Publishers [{event_publisher_count}], Event Subscribers [{event_subscriber_count}], Command Raisers [{command_raiser_count}], Command Processors [{command_processor_count}]')
+            logger.info(f'Message Proceessors Syncronized. Event Publishers [{event_publisher_count}], Event Subscribers [{event_subscriber_count}], Command Raisers [{command_raiser_count}], Command Processors [{command_processor_count}], Stream Subscribers [{stream_subscriber_count}]')
             
             if response.status_code != 200:
                 raise Exception(f'Request failed with status code [{response.status_code}] for [{application_name}]. Details [{response.text}]') 
@@ -179,6 +187,29 @@ class SyncService():
                     event_name = handler.event_name, 
                     webhook_name = handler.process_webhook_name,
                     event_version = handler.event_version)
+                
+                subscriptions.append(subscription)     
+                           
+            return subscriptions       
+        
+        except Exception as ex:
+            logger.error(f"Oops! {ex.__class__} occurred. Details: {ex}")
+            return []
+        
+
+    def build_stream_subscriptions(self, stream_subscribers:List[StreamSubscriberBase]):
+        subscriptions = []
+        
+        try:            
+            if (stream_subscribers == None):
+                return subscriptions
+              
+            for handler in stream_subscribers:
+                subscription = StreamSubscriberRegistration.Create(
+                    dispatcher = handler.processor_name, 
+                    stream_name = handler.event_name, 
+                    webhook_name = handler.process_webhook_name,
+                    version = handler.event_version)
                 
                 subscriptions.append(subscription)     
                            

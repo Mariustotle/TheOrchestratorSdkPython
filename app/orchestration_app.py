@@ -7,6 +7,7 @@ from orchestrator_sdk.message_processors.commands.command_processor_base import 
 from orchestrator_sdk.message_processors.commands.command_raiser_base import CommandRaiserBase
 from orchestrator_sdk.message_processors.events.event_publisher_base import EventPublisherBase
 from orchestrator_sdk.message_processors.events.event_subscriber_base import EventSubscriberBase
+from orchestrator_sdk.message_processors.events.stream_subscriber_base import StreamSubscriberBase
 from orchestrator_sdk.data_access.message_broker.outbox_publisher import OutboxPublisher
 from orchestrator_sdk.data_access.database.unit_of_work import UnitOfWork
 from typing import Optional
@@ -28,6 +29,8 @@ class OrchestrationApp():
     
     event_subscribers: dict[str, EventSubscriberBase] = {}
     event_publishers: dict[str, EventPublisherBase] = {}    
+
+    stream_subscribers: dict[str, StreamSubscriberBase] = {}    
     
     processor:CallbackProcessor = None
     publisher:OutboxPublisher = None  
@@ -46,6 +49,10 @@ class OrchestrationApp():
         
     def add_event_publisher(self, event_publisher:EventPublisherBase):
         self.event_publishers[event_publisher.processor_name] = event_publisher
+
+    def add_stream_subscriber(self, stream_subscriber:StreamSubscriberBase):
+        self.stream_subscribers[stream_subscriber.processor_name] = stream_subscriber
+
     
     def __init__(self) -> bool:       
         
@@ -75,10 +82,11 @@ class OrchestrationApp():
         publishers = self.event_publishers.values()
         raisers = self.command_raisers.values()
         processors = self.command_processors.values()
+        stream_subscribers = self.stream_subscribers.values()
         
         sync_service = SyncService() 
         self.syncronized_with_orchestrator = sync_service.init(settings=orchestrator_settings, endpoints=self.endpoints, 
-           event_publishers=publishers, event_subscribers=subscribers, command_raisers=raisers, command_processors=processors)
+           event_publishers=publishers, event_subscribers=subscribers, command_raisers=raisers, command_processors=processors, stream_subscribers=stream_subscribers)
         
 orchestration_app = OrchestrationApp()
 
