@@ -36,7 +36,7 @@ class OutboxBackgroundService:
     concurrent_staggered_interval: float = 0.01
     long_poll_interval: float = 10
     poll_interval: float = 1
-    
+
     pooling_utility:PoolingUtility = None
     message_database:MessageDatabase = None 
     pending_message_counts:dict = None
@@ -169,33 +169,33 @@ class OutboxBackgroundService:
             
             if (self.batch_concurrent_error_count > 5 and self.stop_concurrent_submission == False):                
                 self.stop_concurrent_submission = True      # Stop concurrent submission 
-                self.semaphore.set_new_limit(1)       
-
+                self.semaphore.set_new_limit(1)
+                
         finally:
             self.semaphore.release()
 
 
     async def run(self, stop_event: asyncio.Event, message_database:MessageDatabase) -> None:        
-        long_wait = False
         self.message_database = message_database
         self.pooling_utility = PoolingUtility(logger, self.message_database.create_db_engine())
         counter = 0
 
         while not stop_event.is_set():
-            self.batch_error_count = 0
-            self.batch_concurrent_error_count = 0
-            self.process_count = 0
-
-            last_submission_count = 0
             session = None
-            api_caller:ApiSubmission = None
-            counter += 1
-            perf_stats = TimerStats(f"Outbox - Next batch #[{counter}]")
-            submitted_messages:dict = dict()
+            long_wait = False
 
-            with Timer(f"Submit messages in outbox [{counter}]", perf_stats):
+            try:
+                self.batch_error_count = 0
+                self.batch_concurrent_error_count = 0
+                self.process_count = 0
+                last_submission_count = 0
+                
+                api_caller:ApiSubmission = None
+                counter += 1
+                perf_stats = TimerStats(f"Outbox - Next batch #[{counter}]")
+                submitted_messages:dict = dict()
 
-                try:
+                with Timer(f"Submit messages in outbox [{counter}]", perf_stats):
 
                     with Timer("Initialization"):
                         if (session == None):
@@ -231,34 +231,42 @@ class OutboxBackgroundService:
                         for message in batch_result.messages:  
                             await asyncio.sleep(self.concurrent_staggered_interval)
 
-                            current_count = submitted_messages.get(message.message_name, 0)
-                            submitted_messages[message.message_name] = current_count + 1
+                            await self.semaphore.acquire()
+                            last_submission_count += 1
 
-                            async with self.semaphore:
-                                last_submission_count += 1
-                                asyncio.create_task(self.publish_one(message, api_caller, message.publish_request_object))                                
+                            asyncio.create_task(self.publish_one(message, api_caller, message.publish_request_object))
+
+                            current_count = submitted_messages.get(message.message_name, 0)
+                            submitted_messages[message.message_name] = current_count + 1                               
+                        
+                        try:
+                            await asyncio.wait_for(self.semaphore.wait_for_all_released(), timeout=10)
+
+                        except asyncio.TimeoutError:                            
+                            logger.warning(f'Could not wait for all instances to be released.')                
+                            self.semaphore = DynamicSemaphore(self.max_parallel)                        
 
                     if (batch_result != None and batch_result.messages_not_completed > 0 and last_submission_count > 0):
                         long_wait = False                        
                     else:
-                        long_wait = True
+                        long_wait = True                        
 
                     with Timer("Save batch updates to DB"):
-                            session.commit()         
+                        session.commit()
 
-                except Exception as ex:
-                    long_wait = True
-                    logger.error(ex)            
-                    raise
+            except Exception as ex:
+                long_wait = True
+                logger.error(ex)
+            
+            finally:
+                if session is not None:
+                    session.close()  
 
-                finally:            
-                    session.close()                        
-
-                with Timer(f"Batch wait time before next"):                    
-                    if (long_wait):
-                        await asyncio.sleep(self.long_poll_interval)
-                    else:
-                        await asyncio.sleep(self.poll_interval)
+            with Timer(f"Batch wait time before next"):
+                if (long_wait):
+                    await asyncio.sleep(self.long_poll_interval)
+                else:
+                    await asyncio.sleep(self.poll_interval)                 
 
             if (last_submission_count > 0):
                 message_totals = ", ".join(f"'{k}' @ [{v}]" for k, v in submitted_messages.items())

@@ -6,17 +6,32 @@ class DynamicSemaphore:
         self._limit = initial_limit
         self._lock = asyncio.Lock()
 
+        # for wait_for_release()
+        self._checked_out = 0
+        self._zero_event = asyncio.Event()
+        self._zero_event.set()   # initially, nothing is checked out
+
     async def acquire(self):
         await self._semaphore.acquire()
+        async with self._lock:
+            self._checked_out += 1
+            self._zero_event.clear()
+    
+    def _do_release(self):
+        # this runs back on the loop thread
+        self._checked_out -= 1
+        if self._checked_out == 0:
+            self._zero_event.set()
 
     def release(self):
         self._semaphore.release()
+        asyncio.get_event_loop().call_soon_threadsafe(self._do_release)
 
     async def __aenter__(self):
         await self.acquire()
         return self
 
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
+    async def __aexit__(self, exc_type, exc, tb):
         self.release()
 
     async def set_new_limit(self, new_limit: int):
@@ -32,3 +47,9 @@ class DynamicSemaphore:
 
     def current_limit(self):
         return self._limit
+
+    async def wait_for_all_released(self):
+        """
+        Block until everything that’s been acquired has been released.
+        """
+        await self._zero_event.wait()
