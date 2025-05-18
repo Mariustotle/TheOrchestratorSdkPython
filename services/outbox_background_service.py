@@ -6,13 +6,14 @@ from pydantic import Field
 
 from orchestrator_sdk.data_access.message_broker.methods.api_submission import ApiSubmission
 
-from typing import Optional
+from typing import Optional, List
 from datetime import datetime, timedelta
 
 from orchestrator_sdk.data_access.database.repositories.message_outbox_repository import MessageOutboxRepository, ReadyForSubmissionBatch
 from orchestrator_sdk.data_access.database.message_database import MessageDatabase
 from orchestrator_sdk.data_access.database.entities.message_outbox_entity import MessageOutboxEntity
 from orchestrator_sdk.contracts.publishing.publish_envelope import PublishEnvelope
+from orchestrator_sdk.seedworks.timer import Timer, TimerStats
 
 from orchestrator_sdk.data_access.database.outbox_status import OutboxStatus
 from orchestrator_sdk.data_access.database.tools.pooling_utility import PoolingUtility
@@ -31,7 +32,7 @@ class OutboxBackgroundService:
     # Intervals in seconds    
     concurrent_staggered_interval: float = 0.01
     long_poll_interval: float = 10
-    poll_interval: float = 2
+    poll_interval: float = 2    
 
     pooling_utility:PoolingUtility = None
     message_database:MessageDatabase = None 
@@ -160,6 +161,7 @@ class OutboxBackgroundService:
         long_wait = False
         self.message_database = message_database
         self.pooling_utility = PoolingUtility(logger, self.message_database.create_db_engine())
+        counter = 0
 
         while not stop_event.is_set():
             self.batch_error_count = 0
@@ -169,61 +171,74 @@ class OutboxBackgroundService:
             last_submission_count = 0
             session = None
             api_caller:ApiSubmission = None
+            counter += 1
+            perf_stats = TimerStats(f"Outbox - Next batch #[{counter}]")
 
-            try:
+            with Timer(f"Submit messages in outbox [{counter}]", perf_stats):
 
-                if (session == None):
-                    session = self.message_database.db_session_maker()
+                try:
+                    if (session == None):
+                        session = self.message_database.db_session_maker()
+                    
+                    if (api_caller == None):
+                        api_caller = ApiSubmission()                 
+
+                    outbox_repo = MessageOutboxRepository(session, None)
+                    do_cleanup:bool = True if self.message_database.last_cleanup_timestamp is None or (datetime.utcnow() - self.message_database.last_cleanup_timestamp) > timedelta(hours=self.min_cleanup_interval_in_hours) else False
                 
-                if (api_caller == None):
-                    api_caller = ApiSubmission()                 
-
-                outbox_repo = MessageOutboxRepository(session, None)
-                do_cleanup:bool = True if self.message_database.last_cleanup_timestamp is None or (datetime.utcnow() - self.message_database.last_cleanup_timestamp) > timedelta(hours=self.min_cleanup_interval_in_hours) else False
-            
-                try:                       
-                    if do_cleanup:
-                        await asyncio.wait_for(self.cleanup(outbox_repo), timeout=120)
+                    try:                       
+                        if do_cleanup:
+                            with Timer("Outbox Cleanup"):
+                                await asyncio.wait_for(self.cleanup(outbox_repo), timeout=120)
                         
-                    await asyncio.wait_for(outbox_repo.remove_duplicates_pending_submission(), timeout=30)  
-                    await asyncio.wait_for(self.update_remaining_message_counters(outbox_repo), timeout=30)             
-                    session.commit()
+                        with Timer("De-duplication pre-processing"):
+                            await asyncio.wait_for(outbox_repo.remove_duplicates_pending_submission(), timeout=30)  
+                            await asyncio.wait_for(self.update_remaining_message_counters(outbox_repo), timeout=30)             
+                            session.commit()
+                        
+                    except asyncio.TimeoutError:
+                        self.pending_message_counts = None
+                        logger.warn(f'Timeout while cleaning up outbox (Cleanup | Remove Duplicates)] - Not stopping, continuing with outbox processing.')                
                     
-                except asyncio.TimeoutError:
-                    self.pending_message_counts = None
-                    logger.warn(f'Timeout while cleaning up outbox (Cleanup | Remove Duplicates)] - Not stopping, continuing with outbox processing.')                
-                    
-                await self.pooling_utility.throttle_database_connections()
-                    
-                batch_result:ReadyForSubmissionBatch = await asyncio.wait_for(outbox_repo.get_next_messages(batch_size=self.batch_size), timeout=60)
-                
-                # Launch publishing tasks with bounded concurrency.
-                for message in batch_result.messages:  
-                    await asyncio.sleep(self.concurrent_staggered_interval)
+                    with Timer("Database connection throttling"):
+                        await self.pooling_utility.throttle_database_connections()
 
-                    async with self.semaphore:
-                        asyncio.create_task(self.publish_one(message, api_caller, message.publish_request_object))
-                        last_submission_count += 1
+                    with Timer("Get next messages from DB"):                        
+                        batch_result:ReadyForSubmissionBatch = await asyncio.wait_for(outbox_repo.get_next_messages(batch_size=self.batch_size), timeout=60)
 
-                if (batch_result != None and batch_result.messages_not_completed > 0 and last_submission_count > 0):
-                    long_wait = False
-                    await asyncio.sleep(self.poll_interval)
-                else:
+                    with Timer(f"Submit messages to Orchestrator [{len(batch_result.messages)}]"):                                            
+                        # Launch publishing tasks with bounded concurrency.
+                        for message in batch_result.messages:  
+                            await asyncio.sleep(self.concurrent_staggered_interval)
+
+                            async with self.semaphore:
+                                last_submission_count += 1
+                                asyncio.create_task(self.publish_one(message, api_caller, message.publish_request_object))                                
+
+                    if (batch_result != None and batch_result.messages_not_completed > 0 and last_submission_count > 0):
+                        long_wait = False
+                        await asyncio.sleep(self.poll_interval)
+                    else:
+                        long_wait = True
+
+                    with Timer("Save batch updates to DB"):
+                            session.commit()         
+
+                except Exception as ex:
                     long_wait = True
+                    logger.error(ex)            
+                    raise
 
-                session.commit()              
+                finally:            
+                    if (session != None):
+                        session.close()
+                    
+                    if (long_wait):
+                        with Timer(f"Long wait time"): 
+                            await asyncio.sleep(self.long_poll_interval)
 
-            except Exception as ex:
-                long_wait = True
-                logger.error(ex)            
-                raise
-
-            finally:            
-                if (session != None):
-                    session.close()
-
-                if (long_wait):
-                    await asyncio.sleep(self.long_poll_interval)
+            if (last_submission_count > 0):
+                logger.info(perf_stats.display_summary())
 
 
 outbox_publisher = OutboxBackgroundService()
