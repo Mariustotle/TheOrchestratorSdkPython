@@ -5,8 +5,7 @@ from typing import Optional
 import json
 
 class ConfigReader:       
-    
-    
+        
     def convert(self, json_data, class_type):
         if isinstance(json_data, list):
             return [self.convert(item) for item in json_data]
@@ -16,8 +15,7 @@ class ConfigReader:
                 setattr(instance, key, self.convert(value, class_type))
             return instance
         else:
-            return json_data
-    
+            return json_data    
     
     def from_json(self, json_payload, class_type):
         

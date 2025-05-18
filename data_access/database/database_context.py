@@ -12,8 +12,12 @@ class DatabaseContext(ABC):
         super().__init__()
     
     def init(self) -> None:
-        self.db_engine = self.create_db_engine()
-        self.db_base.metadata.create_all(bind=self.db_engine)
+        try:
+            self.db_engine = self.create_db_engine()
+            self.db_base.metadata.create_all(bind=self.db_engine)
+        except Exception as ex:
+            raise
+        
     
     @abstractmethod
     def create_db_engine(self) -> Engine:

@@ -3,7 +3,7 @@ from orchestrator_sdk.message_processors.commands.command_processor_base import 
 from orchestrator_sdk.message_processors.commands.command_raiser_base import CommandRaiserBase
 from orchestrator_sdk.message_processors.events.event_publisher_base import EventPublisherBase
 from orchestrator_sdk.message_processors.events.event_subscriber_base import EventSubscriberBase
-from orchestrator_sdk.data_access.database.services.idempotence_service import IdempotenceService
+from orchestrator_sdk.services.idempotence_service import IdempotenceService
 
 from orchestrator_sdk.contracts.types.action_type import ActionType
 from orchestrator_sdk.contracts.types.message_type import MessageType

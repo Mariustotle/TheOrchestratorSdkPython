@@ -1,6 +1,5 @@
 from orchestrator_sdk.data_access.database.repositories.message_outbox_repository import MessageOutboxRepository
 from orchestrator_sdk.data_access.database.repositories.message_history_repository import MessageHistoryRepository
-from orchestrator_sdk.data_access.database.services.local_outbox_service import LocalOutboxService
 from orchestrator_sdk.data_access.database.repository_base import RepositoryBase
 
 from orchestrator_sdk.data_access.database.message_database import message_database as ms_db
@@ -9,9 +8,8 @@ from typing import Optional
 from sqlalchemy.orm import Session
 
 from uuid import uuid4
-
 import uuid
-import asyncio
+
 
 class UnitOfWork:    
     transaction_reference:uuid4 = None
@@ -38,10 +36,7 @@ class UnitOfWork:
             self.application_database = application_database
 
         self.message_database = ms_db            
-            
-        self.transaction_reference = uuid.uuid4()
-        self.local_outbox_service = LocalOutboxService(self.message_database)       
-        
+        self.transaction_reference = uuid.uuid4()       
 
     def __enter__(self):
         self.message_session = ms_db.db_session_maker()
@@ -94,7 +89,7 @@ class UnitOfWork:
             self.message_session.commit()
     
     def _run_post_commit_processes(self):
-        asyncio.create_task(self.local_outbox_service.check_for_messages_that_are_ready())
+        pass
             
     def _rollback_messages(self):
         self.message_outbox_repository.rollback_transaction()
