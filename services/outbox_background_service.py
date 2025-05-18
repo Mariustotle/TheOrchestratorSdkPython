@@ -35,8 +35,8 @@ class OutboxBackgroundService:
     # Intervals in seconds    
     concurrent_staggered_interval: float = 0.01
     long_poll_interval: float = 10
-    poll_interval: float = 2    
-
+    poll_interval: float = 1
+    
     pooling_utility:PoolingUtility = None
     message_database:MessageDatabase = None 
     pending_message_counts:dict = None
@@ -196,28 +196,29 @@ class OutboxBackgroundService:
             with Timer(f"Submit messages in outbox [{counter}]", perf_stats):
 
                 try:
-                    if (session == None):
-                        session = self.message_database.db_session_maker()
-                    
-                    if (api_caller == None):
-                        api_caller = ApiSubmission()                 
 
-                    outbox_repo = MessageOutboxRepository(session, None)
-                    do_cleanup:bool = True if self.message_database.last_cleanup_timestamp is None or (datetime.utcnow() - self.message_database.last_cleanup_timestamp) > timedelta(hours=self.min_cleanup_interval_in_hours) else False
-                
-                    try:                       
-                        if do_cleanup:
-                            with Timer("Outbox Cleanup"):
-                                await asyncio.wait_for(self.cleanup(outbox_repo), timeout=120)
+                    with Timer("Initialization"):
+                        if (session == None):
+                            session = self.message_database.db_session_maker()
                         
-                        with Timer("De-duplication pre-processing"):
+                        if (api_caller == None):
+                            api_caller = ApiSubmission()                 
+
+                        outbox_repo = MessageOutboxRepository(session, None)
+                        do_cleanup:bool = True if self.message_database.last_cleanup_timestamp is None or (datetime.utcnow() - self.message_database.last_cleanup_timestamp) > timedelta(hours=self.min_cleanup_interval_in_hours) else False
+
+                    with Timer("Outbox Cleanup and De-Duplication"):
+                        try:                       
+                            if do_cleanup:                     
+                                await asyncio.wait_for(self.cleanup(outbox_repo), timeout=120)                        
+
                             await asyncio.wait_for(outbox_repo.remove_duplicates_pending_submission(), timeout=30)  
                             await asyncio.wait_for(self.update_remaining_message_counters(outbox_repo), timeout=30)             
                             session.commit()
-                        
-                    except asyncio.TimeoutError:
-                        self.pending_message_counts = None
-                        logger.warning(f'Timeout while cleaning up outbox (Cleanup | Remove Duplicates)] - Not stopping, continuing with outbox processing.')                
+                            
+                        except asyncio.TimeoutError:
+                            self.pending_message_counts = None
+                            logger.warning(f'Timeout while cleaning up outbox (Cleanup | Remove Duplicates)] - Not stopping, continuing with outbox processing.')                
                     
                     with Timer("Database connection throttling"):
                         await self.pooling_utility.throttle_database_connections()
@@ -238,8 +239,7 @@ class OutboxBackgroundService:
                                 asyncio.create_task(self.publish_one(message, api_caller, message.publish_request_object))                                
 
                     if (batch_result != None and batch_result.messages_not_completed > 0 and last_submission_count > 0):
-                        long_wait = False
-                        await asyncio.sleep(self.poll_interval)
+                        long_wait = False                        
                     else:
                         long_wait = True
 
@@ -252,12 +252,13 @@ class OutboxBackgroundService:
                     raise
 
                 finally:            
-                    if (session != None):
-                        session.close()
-                    
+                    session.close()                        
+
+                with Timer(f"Batch wait time before next"):                    
                     if (long_wait):
-                        with Timer(f"Long wait time"): 
-                            await asyncio.sleep(self.long_poll_interval)
+                        await asyncio.sleep(self.long_poll_interval)
+                    else:
+                        await asyncio.sleep(self.poll_interval)
 
             if (last_submission_count > 0):
                 message_totals = ", ".join(f"'{k}' @ [{v}]" for k, v in submitted_messages.items())
