@@ -1,5 +1,6 @@
 import time
 from datetime import datetime
+from typing import Optional
 
 
 class TimerStats:
@@ -9,7 +10,7 @@ class TimerStats:
         self.start_time: datetime | None = None
         self.end_time: datetime | None = None
 
-    def display_summary(self) -> str:
+    def display_summary(self, additional_info:Optional[str] = None) -> str:
         if not (self.start_time and self.end_time):
             return f"No complete timing for [{self.name}]"
         total_duration = (self.end_time - self.start_time).total_seconds()
@@ -17,16 +18,18 @@ class TimerStats:
         if self.steps:
             slowest_step = max(self.steps, key=self.steps.get)
             slowest_pct = (self.steps[slowest_step] / total_duration) * 100
-            step_details = ", ".join(f"{k}: {v:.4f}s" for k, v in self.steps.items())
+            step_details = ", ".join(f"'{k}' @ [{v:.3f}]s" for k, v in self.steps.items())
         else:
             slowest_step = "n/a"
             slowest_pct = 0.0
             step_details = "no steps recorded"
 
+        add_info = '' if additional_info is None else f' Additional Info: {additional_info}'
+
         return (
-            f"Performance stats for [{self.name}]: {total_duration:.4f}s total, "
-            f"slowest step [{slowest_step}] was {self.steps[slowest_step]}s at {slowest_pct:.1f}% of time. "
-            f"Steps: {step_details}"
+            f"Performance stats for '{self.name}': [{total_duration:.3f}]s total, "
+            f"slowest step '{slowest_step}' was [{self.steps[slowest_step]:.3f}]s at [{slowest_pct:.1f}]% of time. "
+            f"Steps: {step_details}.{add_info}"
         )
 
 

@@ -104,7 +104,7 @@ class SyncService():
            
             self._post(request, endpoint)
             
-            logger.info('Default webhook details syncronized')
+            logger.trace('Default webhook details syncronized')
             return True       
         
         except Exception as ex:
@@ -130,7 +130,7 @@ class SyncService():
             command_processor_count = len(command_processors) if command_processors != None else 0
             stream_subscriber_count = len(stream_subscribers) if stream_subscribers != None else 0
             
-            logger.info(f'Message Proceessors Syncronized. Event Publishers [{event_publisher_count}], Event Subscribers [{event_subscriber_count}], Command Raisers [{command_raiser_count}], Command Processors [{command_processor_count}], Stream Subscribers [{stream_subscriber_count}]')
+            logger.debug(f'Message Proceessors Syncronized. Event Publishers [{event_publisher_count}], Event Subscribers [{event_subscriber_count}], Command Raisers [{command_raiser_count}], Command Processors [{command_processor_count}], Stream Subscribers [{stream_subscriber_count}]')
             
             if response.status_code != 200:
                 raise Exception(f'Request failed with status code [{response.status_code}] for [{application_name}]. Details [{response.text}]') 

@@ -14,6 +14,9 @@ from orchestrator_sdk.data_access.database.message_database import MessageDataba
 from orchestrator_sdk.data_access.database.entities.message_outbox_entity import MessageOutboxEntity
 from orchestrator_sdk.contracts.publishing.publish_envelope import PublishEnvelope
 from orchestrator_sdk.seedworks.timer import Timer, TimerStats
+from orchestrator_sdk.contracts.orchestrator_config import OrchestratorConfig
+from orchestrator_sdk.seedworks.config_reader import ConfigReader
+from orchestrator_sdk.seedworks.dynamic_semaphor import DynamicSemaphore
 
 from orchestrator_sdk.data_access.database.outbox_status import OutboxStatus
 from orchestrator_sdk.data_access.database.tools.pooling_utility import PoolingUtility
@@ -39,17 +42,24 @@ class OutboxBackgroundService:
     pending_message_counts:dict = None
     min_cleanup_interval_in_hours:int = 2
 
-    batch_size: int = 50         # Number of messages in one batch read
-    max_parallel: int = 10       # Concurrent number of submissions
-    semaphore: asyncio.Semaphore = Field(init=False)
+    batch_size: int = None         # Number of messages in one batch read
+    max_parallel: int = None       # Concurrent number of submissions
+    semaphore: DynamicSemaphore = None
 
     batch_error_count: int = 0
     batch_concurrent_error_count: int = 0
+    stop_concurrent_submission:bool = False
     process_count: int = 0
 
     def __post_init__(self):
+        config_reader = ConfigReader()
+        orchestrator_settings:OrchestratorConfig = config_reader.section('orchestrator', OrchestratorConfig)
+
+        self.max_parallel = orchestrator_settings.outbox_concurrency if orchestrator_settings.outbox_concurrency != None else 10
+        self.batch_size = orchestrator_settings.outbox_batch_size if orchestrator_settings.outbox_batch_size != None else 50
+
         # Create a real semaphore instance
-        self.semaphore = asyncio.Semaphore(self.max_parallel)
+        self.semaphore = DynamicSemaphore(self.max_parallel)     
 
             
     async def update_remaining_message_counters(self, repo:MessageOutboxRepository):
@@ -128,6 +138,10 @@ class OutboxBackgroundService:
 
             message.process_count += 1
             self.batch_concurrent_error_count = 0
+
+            if (self.stop_concurrent_submission):
+                self.stop_concurrent_submission = False
+                self.semaphore.set_new_limit(self.max_parallel)
             
             message.status = OutboxStatus.Published.name
             message.is_completed = True
@@ -136,22 +150,26 @@ class OutboxBackgroundService:
             self.update_message_counter_on_success(message_name=message.message_name)        
 
         except RequestsConnectionError:
-            logger.warn(f'Unable to connect to orchestrator server to publish the messages waiting to be sent. Will delay retry.')
-            logger.info(f'MESSAGE DB POOL STATUS: [{self.message_database.db_engine.pool.status()}]')
+            logger.warning(f'Unable to connect to orchestrator server to publish the messages waiting to be sent. Will delay retry.')
+            logger.debug(f'MESSAGE DB POOL STATUS: [{self.message_database.db_engine.pool.status()}]')
             # Do not incriment or apply exponential backoff if a connection could not be established
 
             return False
             
         except Exception as ex:
             logger.error(f"Oops! {ex.__class__} occurred. Details: {ex}")
-            logger.info(f'MESSAGE DB POOL STATUS: [{self.message_database.db_engine.pool.status()}]')  
+            logger.debug(f'MESSAGE DB POOL STATUS: [{self.message_database.db_engine.pool.status()}]')  
             
             self.batch_concurrent_error_count += 1
             self.batch_error_count += 1
             
             message.process_count += 1
             eligible_after = self.calculate_exponential_backoff(message.process_count)
-            message.eligible_after = eligible_after            
+            message.eligible_after = eligible_after
+            
+            if (self.batch_concurrent_error_count > 5 and self.stop_concurrent_submission == False):                
+                self.stop_concurrent_submission = True      # Stop concurrent submission 
+                self.semaphore.set_new_limit(1)       
 
         finally:
             self.semaphore.release()
@@ -173,6 +191,7 @@ class OutboxBackgroundService:
             api_caller:ApiSubmission = None
             counter += 1
             perf_stats = TimerStats(f"Outbox - Next batch #[{counter}]")
+            submitted_messages:dict = dict()
 
             with Timer(f"Submit messages in outbox [{counter}]", perf_stats):
 
@@ -198,7 +217,7 @@ class OutboxBackgroundService:
                         
                     except asyncio.TimeoutError:
                         self.pending_message_counts = None
-                        logger.warn(f'Timeout while cleaning up outbox (Cleanup | Remove Duplicates)] - Not stopping, continuing with outbox processing.')                
+                        logger.warning(f'Timeout while cleaning up outbox (Cleanup | Remove Duplicates)] - Not stopping, continuing with outbox processing.')                
                     
                     with Timer("Database connection throttling"):
                         await self.pooling_utility.throttle_database_connections()
@@ -210,6 +229,9 @@ class OutboxBackgroundService:
                         # Launch publishing tasks with bounded concurrency.
                         for message in batch_result.messages:  
                             await asyncio.sleep(self.concurrent_staggered_interval)
+
+                            current_count = submitted_messages.get(message.message_name, 0)
+                            submitted_messages[message.message_name] = current_count + 1
 
                             async with self.semaphore:
                                 last_submission_count += 1
@@ -238,7 +260,8 @@ class OutboxBackgroundService:
                             await asyncio.sleep(self.long_poll_interval)
 
             if (last_submission_count > 0):
-                logger.info(perf_stats.display_summary())
+                message_totals = ", ".join(f"'{k}' @ [{v}]" for k, v in submitted_messages.items())
+                logger.debug(perf_stats.display_summary(message_totals))
 
 
 outbox_publisher = OutboxBackgroundService()

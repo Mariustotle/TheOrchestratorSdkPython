@@ -59,7 +59,7 @@ class CallbackProcessor:
         if unit_of_work is not None:           
             already_processed:bool = await self.idempotence_service.has_message_been_processed(message_id=message_id, unit_of_work=unit_of_work)
             if already_processed:
-                logger.info(f'Idempotence check: Message [{message_id}] have already been processed, skipping this request.')
+                logger.warning(f'Idempotence check: Message [{message_id}] have already been processed, skipping this request.')
                 return # Our work here is done
         
         message_name:str = CallbackContext.message_name.get()   
