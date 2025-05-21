@@ -33,8 +33,9 @@ logger = Logger.get_instance()
 class OutboxBackgroundService:
 
     # Intervals in seconds    
-    concurrent_staggered_interval: float = None
-    long_poll_interval: float = None
+    item_delay: float = None
+    long_batch_delay: float = None
+    batch_delay: float
 
     pooling_utility:PoolingUtility = None
     message_database:MessageDatabase = None 
@@ -56,8 +57,9 @@ class OutboxBackgroundService:
 
         self.max_parallel = orchestrator_settings.outbox.concurrency if orchestrator_settings.outbox.concurrency != None else 10
         self.batch_size = orchestrator_settings.outbox.batch_size if orchestrator_settings.outbox.batch_size != None else 50
-        self.concurrent_staggered_interval = orchestrator_settings.outbox.item_delay if orchestrator_settings.outbox.item_delay != None else 0.02
-        self.long_poll_interval = orchestrator_settings.outbox.long_delay if orchestrator_settings.outbox.long_delay != None else 10
+        self.item_delay = orchestrator_settings.outbox.item_delay if orchestrator_settings.outbox.item_delay != None else 0.02
+        self.long_batch_delay = orchestrator_settings.outbox.long_batch_delay if orchestrator_settings.outbox.long_batch_delay != None else 10
+        self.batch_delay = orchestrator_settings.outbox.batch_delay if orchestrator_settings.outbox.batch_delay != None else 10
 
         # Create a real semaphore instance
         self.semaphore = DynamicSemaphore(self.max_parallel)     
@@ -230,7 +232,7 @@ class OutboxBackgroundService:
                     with Timer(f"Submit messages to Orchestrator [{len(batch_result.messages)}]"):                                            
                         # Launch publishing tasks with bounded concurrency.
                         for message in batch_result.messages:  
-                            await asyncio.sleep(self.concurrent_staggered_interval)
+                            await asyncio.sleep(self.item_delay)
 
                             await self.semaphore.acquire()
                             last_submission_count += 1
@@ -265,9 +267,9 @@ class OutboxBackgroundService:
 
             with Timer(f"Batch wait time before next"):
                 if (long_wait):
-                    await asyncio.sleep(self.long_poll_interval)
+                    await asyncio.sleep(self.long_batch_delay)
                 else:
-                    await asyncio.sleep(self.poll_interval)                 
+                    await asyncio.sleep(self.batch_delay)                 
 
             if (last_submission_count > 0):
                 message_totals = ", ".join(f"'{k}' @ [{v}]" for k, v in submitted_messages.items())
