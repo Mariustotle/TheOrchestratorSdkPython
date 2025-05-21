@@ -35,7 +35,7 @@ class OutboxBackgroundService:
     # Intervals in seconds    
     item_delay: float = None
     long_batch_delay: float = None
-    batch_delay: float
+    batch_delay: float = None
 
     pooling_utility:PoolingUtility = None
     message_database:MessageDatabase = None 
