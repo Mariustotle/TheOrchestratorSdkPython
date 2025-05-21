@@ -33,9 +33,8 @@ logger = Logger.get_instance()
 class OutboxBackgroundService:
 
     # Intervals in seconds    
-    concurrent_staggered_interval: float = 0.01
-    long_poll_interval: float = 10
-    poll_interval: float = 1
+    concurrent_staggered_interval: float = None
+    long_poll_interval: float = None
 
     pooling_utility:PoolingUtility = None
     message_database:MessageDatabase = None 
@@ -55,8 +54,10 @@ class OutboxBackgroundService:
         config_reader = ConfigReader()
         orchestrator_settings:OrchestratorConfig = config_reader.section('orchestrator', OrchestratorConfig)
 
-        self.max_parallel = orchestrator_settings.outbox_concurrency if orchestrator_settings.outbox_concurrency != None else 10
-        self.batch_size = orchestrator_settings.outbox_batch_size if orchestrator_settings.outbox_batch_size != None else 50
+        self.max_parallel = orchestrator_settings.outbox.concurrency if orchestrator_settings.outbox.concurrency != None else 10
+        self.batch_size = orchestrator_settings.outbox.batch_size if orchestrator_settings.outbox.batch_size != None else 50
+        self.concurrent_staggered_interval = orchestrator_settings.outbox.item_delay if orchestrator_settings.outbox.item_delay != None else 0.02
+        self.long_poll_interval = orchestrator_settings.outbox.long_delay if orchestrator_settings.outbox.long_delay != None else 10
 
         # Create a real semaphore instance
         self.semaphore = DynamicSemaphore(self.max_parallel)     
