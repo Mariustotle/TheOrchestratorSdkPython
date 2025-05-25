@@ -2,9 +2,9 @@ from abc import ABC, abstractmethod
 from typing import TypeVar, Generic, Optional, List, Type
 from orchestrator_sdk.seedworks.config_reader import ConfigReader
 from orchestrator_sdk.contracts.orchestrator_config import OrchestratorConfig
+from orchestrator_sdk.callback.processing_context import ProcessingContext
 from orchestrator_sdk.seedworks.logger import Logger
 from orchestrator_sdk.contracts.requests.events.publish_event_request import PublishEventRequest
-from orchestrator_sdk.callback_context import CallbackContext
 from orchestrator_sdk.contracts.publishing.publish_envelope import PublishEnvelope
 from orchestrator_sdk.contracts.types.processing_type import ProcessingType
 
@@ -68,22 +68,18 @@ class EventPublisherBase(ABC, Generic[T]):
     def build_unique_header(self, request_object:T) -> Optional[str]:
         return None
    
-    def build_request(self, request_object:T, reference:Optional[str] = None, priority:Optional[int] = None) -> PublishEventRequest:        
+    def build_request(self, request_object:T, processing_context:ProcessingContext, reference:Optional[str] = None, priority:Optional[int] = None) -> PublishEventRequest:        
         serialized_payload = request_object.json()
         
         unique_header_string = self.build_unique_header(request_object) 
-        unique_header_hash = EventPublisherBase.hash_and_convert_to_string(unique_header_string)
-        
-        source_trace_message_id = None        
-        if CallbackContext.is_available():
-            source_trace_message_id = CallbackContext.trace_message_id.get()
+        unique_header_hash = EventPublisherBase.hash_and_convert_to_string(unique_header_string)        
         
         if (priority != None and (priority < 0 or priority > 1000)):
             raise Exception(f'Trying to set priority [{priority}], failed as it is not between 1 and 1000')
        
         publish_request:PublishEventRequest = PublishEventRequest.Create(
             application_name=self.application_name, event_name=self.event_name, priority=priority, event_version=self.latest_version, 
-            event_reference=reference, content=serialized_payload, source_trace_message_id=source_trace_message_id, unique_request_header_hash=unique_header_hash)
+            event_reference=reference, content=serialized_payload, unique_request_header_hash=unique_header_hash)
             
         envelope = PublishEnvelope.Create(
             publish_request=publish_request,
@@ -91,7 +87,7 @@ class EventPublisherBase(ABC, Generic[T]):
             message_name=self.event_name,
             handler_name=self.processor_name,
             reference=reference,
-            source_trace_message_id=source_trace_message_id,
+            processing_context=processing_context,
             priority=priority,
             de_duplication_enabled=self.de_duplication_enabled,
             de_duplication_delay_in_seconds=self.de_duplication_delay_in_minutes,

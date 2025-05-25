@@ -30,7 +30,7 @@ class OutboxPublisher:
                 handler_name = publish_instruction.handler_name,
                 endpoint=publish_instruction.endpoint,
                 publish_request_object=publish_instruction.publish_request,
-                source_trace_message_id=publish_instruction.source_trace_message_id,
+                processing_context=publish_instruction.processing_context,
                 de_duplication_enabled=publish_instruction.de_duplication_enabled,
                 de_duplication_delay_in_seconds=publish_instruction.de_duplication_delay_in_minutes,
                 unique_header_hash=publish_instruction.unique_header_hash, message_name=publish_instruction.message_name,

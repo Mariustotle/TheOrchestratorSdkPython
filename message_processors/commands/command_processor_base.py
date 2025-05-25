@@ -2,6 +2,7 @@ from abc import ABC, abstractmethod
 from typing import TypeVar, Generic, Optional
 from orchestrator_sdk.seedworks.logger import Logger
 from orchestrator_sdk.contracts.types.processing_type import ProcessingType
+from orchestrator_sdk.callback.processing_context import ProcessingContext
 
 from orchestrator_sdk.seedworks.config_reader import ConfigReader
 from orchestrator_sdk.contracts.orchestrator_config import OrchestratorConfig
@@ -17,7 +18,7 @@ class CommandProcessorBase(ABC, Generic[T]):
     processor_name:str
     process_webhook_name:str
     request_type:type
-    processing_type:ProcessingType   
+    processing_type:ProcessingType
     
     application_name: str = None
     latest_version: Optional[str] = None
@@ -47,15 +48,15 @@ class CommandProcessorBase(ABC, Generic[T]):
         self.requires_command_raiser_approval = requires_command_raiser_approval
         
     @abstractmethod
-    async def _process(self, request: T, name:str, reference:Optional[str], unit_of_work:Optional[UnitOfWork] = None) -> None:
+    async def _process(self, request: T, name:str, processing_context: ProcessingContext, reference:Optional[str], unit_of_work:Optional[UnitOfWork] = None) -> None:
         pass    
             
-    async def process(self, request: T, command_name:str, reference:Optional[str], unit_of_work:Optional[UnitOfWork] = None) -> None:
+    async def process(self, request: T, command_name:str, processing_context: ProcessingContext, reference:Optional[str], unit_of_work:Optional[UnitOfWork] = None) -> None:
         if self.command_name.lower() != command_name.lower():
             raise ValueError(f'Trying to process command [{command_name}] in handler [{self.processor_name}] but it is not a supported.')        
         
         try:
-            return await self._process(request, command_name, reference, unit_of_work)
+            return await self._process(request, command_name, processing_context, reference, unit_of_work)
         
         except Exception as ex:
             logger.error(f"Oops! {ex.__class__} occurred. Details: {ex}")  

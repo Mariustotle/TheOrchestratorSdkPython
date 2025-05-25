@@ -4,6 +4,7 @@ import json
 from dataclasses import dataclass
 from pydantic import Field
 
+from orchestrator_sdk.callback.processing_context import ProcessingContext
 from orchestrator_sdk.data_access.message_broker.methods.api_submission import ApiSubmission
 
 from typing import Optional, List
@@ -125,13 +126,17 @@ class OutboxBackgroundService:
             if (self.pending_message_counts != None and message.message_name in self.pending_message_counts):
                 items_at_source = self.pending_message_counts[message.message_name] - 1           
             
-            payload = self.update_message_process_fields(message.priority, items_at_source, content)        
+            payload = self.update_message_process_fields(message.priority, items_at_source, content)
+            msg_source_message_trace_id = message.source_trace_message_id
+            
+            process_context = ProcessingContext.Create(
+                source_message_trace_id=msg_source_message_trace_id, source_priority=None)
                                         
             envelope = PublishEnvelope.Create(
                     endpoint=message.endpoint,
+                    processing_context=process_context,
                     publish_request=payload,
                     handler_name=message.handler_name,
-                    source_trace_message_id=message.source_trace_message_id,
                     priority=message.priority, message_name=message.message_name,
                     de_duplication_enabled=message.de_duplication_enabled,
                     de_duplication_delay_in_seconds=message.de_duplication_delay_in_seconds,

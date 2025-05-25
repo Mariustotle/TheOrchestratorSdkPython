@@ -2,6 +2,7 @@ from typing import Optional
 from sqlalchemy import Column, String, DATETIME, Boolean, Integer, Index
 from orchestrator_sdk.data_access.database.outbox_status import OutboxStatus
 from orchestrator_sdk.data_access.database.message_entity_base import MessageEntityBase
+from orchestrator_sdk.callback.processing_context import ProcessingContext
 
 from datetime import datetime
 
@@ -36,19 +37,23 @@ class MessageOutboxEntity(MessageEntityBase):
             endpoint:str,
             handler_name:str,
             message_name:str,
-            source_trace_message_id:str,
             de_duplication_enabled:bool,            
             unique_header_hash:Optional[str],
-            priority:Optional[int],
+            processing_context:ProcessingContext,
+            priority:Optional[int] = 10,
             de_duplication_delay_in_seconds:Optional[int] = None,
-            eligible_after:Optional[datetime] = None):      
+            eligible_after:Optional[datetime] = None):
+        
+        default_prio = 10
+        final_priority = max(priority if priority != None else default_prio, 
+            processing_context.source_priority if processing_context.source_priority != None else default_prio)
         
         return MessageOutboxEntity(
             publish_request_object = publish_request_object.json() if publish_request_object is not None else None,
             status = str(OutboxStatus.Pending.name),
             message_name = message_name,
             handler_name = handler_name,
-            source_trace_message_id = source_trace_message_id,
+            source_trace_message_id = processing_context.source_message_trace_id,
             process_count = 0,
             de_duplication_enabled = de_duplication_enabled,
             de_duplication_delay_in_seconds = de_duplication_delay_in_seconds,
@@ -58,5 +63,5 @@ class MessageOutboxEntity(MessageEntityBase):
             is_completed = str(False),
             published_date = None,
             endpoint = endpoint,
-            priority = priority if priority is not None else 10
+            priority = final_priority
         )  
