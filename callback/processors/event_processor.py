@@ -33,7 +33,7 @@ class EventProcessor(ProcessorBase):
         )
     
     def get_processing_context(self, headers:EventHeaders) -> ProcessingContext: 
-        return ProcessingContext.Create(source_message_trace_id=headers.message_trace_id, source_priority=headers.priority)
+        return ProcessingContext.Create(source_message_trace_id= headers.message_trace_id, source_priority=headers.priority, message_name=headers.message_name, reference=headers.reference)
 
     async def process_specific(self, json_content, callback: EventCallback, headers:EventHeaders, processing_context:ProcessingContext, unit_of_work:UnitOfWork) -> object:
         response_object = None

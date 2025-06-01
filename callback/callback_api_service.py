@@ -12,7 +12,7 @@ from orchestrator_sdk.testing.availability_simulator import AvailabilitySimulato
 from orchestrator_sdk.seedworks.json_worker import JsonWorker
 from orchestrator_sdk.callback.callback_types.command_callback import CommandCallback
 from orchestrator_sdk.callback.callback_types.event_callback import EventCallback
-from orchestrator_sdk.callback.callback_types.stream_callback import StreamCallback
+from orchestrator_sdk.callback.callback_types.stream_event_callback import StreamEventCallback
 
 from orchestrator_sdk.app.orchestration_app import orchestration_app
 from src.database.application_database import application_database
@@ -22,7 +22,7 @@ logger = Logger.get_instance()
 availability_sim = AvailabilitySimulator.instance()
 json_worker = JsonWorker()
 
-EventUnion = Union[CommandCallback, EventCallback, StreamCallback]
+EventUnion = Union[CommandCallback, EventCallback, StreamEventCallback]
 
 async def get_unit_of_work() -> UnitOfWork:
     return UnitOfWork(application_database)
@@ -76,7 +76,7 @@ async def callback(
                 response = await orchestration_app.command_processor.process(callback_event=event, all_headers=headers, unit_of_work=unit_of_work)
             elif isinstance(event, EventCallback):
                 response = await orchestration_app.event_processor.process(callback_event=event, all_headers=headers, unit_of_work=unit_of_work)
-            elif isinstance(event, StreamCallback):
+            elif isinstance(event, StreamEventCallback):
                 response = await orchestration_app.stream_processor.process(callback_event=event, all_headers=headers, unit_of_work=unit_of_work)
             else:
                 raise HTTPException(status_code=400, detail="Unsupported event type")

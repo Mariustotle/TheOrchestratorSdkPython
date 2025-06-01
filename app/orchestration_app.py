@@ -10,7 +10,7 @@ from orchestrator_sdk.message_processors.commands.command_processor_base import 
 from orchestrator_sdk.message_processors.commands.command_raiser_base import CommandRaiserBase
 from orchestrator_sdk.message_processors.events.event_publisher_base import EventPublisherBase
 from orchestrator_sdk.message_processors.events.event_subscriber_base import EventSubscriberBase
-from orchestrator_sdk.message_processors.events.stream_subscriber_base import StreamSubscriberBase
+from orchestrator_sdk.message_processors.StreamOutbound.stream_subscriber_base import StreamSubscriberBase
 from orchestrator_sdk.data_access.message_broker.outbox_publisher import OutboxPublisher
 from typing import Optional
 
@@ -67,7 +67,7 @@ class OrchestrationApp():
         
         self.command_processor = CommandProcessor(application_name=self.application_name, command_raisers=self.command_raisers, command_processors=self.command_processors)
         self.event_processor = EventProcessor(application_name=self.application_name, event_publishers=self.event_publishers, event_subscribers=self.event_subscribers)
-        self.stream_processor = StreamProcessor(application_name=self.application_name, event_subscribers=self.event_subscribers)
+        self.stream_processor = StreamProcessor(application_name=self.application_name, stream_subscribers=self.stream_subscribers)
         
         self.publisher = OutboxPublisher()
         

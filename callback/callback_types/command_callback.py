@@ -2,11 +2,12 @@ from orchestrator_sdk.contracts.types.action_type import ActionType
 from orchestrator_sdk.contracts.types.message_type import MessageType
 from orchestrator_sdk.callback.callback_types.base_callback import BaseCallback
 from typing import Literal
+from pydantic import Field
 
 import uuid
 
 class CommandCallback(BaseCallback):
-    CallbackType: Literal['Commands']      
+    CallbackType: Literal['Commands']
     JsonPayload:str = None
 
 class CommandHeaders():

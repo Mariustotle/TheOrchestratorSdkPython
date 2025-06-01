@@ -1,17 +1,28 @@
 from orchestrator_sdk.contracts.types.action_type import ActionType
+from orchestrator_sdk.contracts.types.crud_action import CrudAction
 from orchestrator_sdk.contracts.types.message_type import MessageType
 from orchestrator_sdk.callback.callback_types.base_callback import BaseCallback
-from typing import Literal
+from typing import Literal, Optional
+from pydantic import Field
 
-import uuid
+from uuid import UUID
+from datetime import datetime
 
-class StreamCallback(BaseCallback):
-    CallbackType: Literal['EventStream']
+class StreamEventCallback(BaseCallback):
+    CallbackType:Literal['StreamOutbound']
     JsonPayload:str = None
+    Action:CrudAction = None
+    EventId:UUID = None
+    StreamIdentifier:str = None
+    IsLatest:bool = None
+    OfficialCreatedDate:datetime = None
+    EffectiveFromDate:datetime = None
+    EffectiveToDate:Optional[datetime] = None
+
 
 class StreamHeaders():
-    message_id:uuid = None
-    message_trace_id:str = None
+    message_id:UUID = None
+    message_trace_id:Optional[str] = None
     message_name:str = None
     application_name:str = None
     dispatcher:str = None      
@@ -21,13 +32,13 @@ class StreamHeaders():
     priority:int = None
 
     @staticmethod
-    def Create(message_id_string:str, message_trace_id_string:str, message_name:str, application_name:str, dispatcher:str, action_string:str, message_type_string:str, reference:str, priority_string:str):        
+    def Create(message_id_string:str, message_trace_id_string:Optional[str], message_name:str, application_name:str, dispatcher:str, action_string:str, message_type_string:str, reference:str, priority_string:str):        
         
         priority:int = None
         if (priority_string != None):
             priority = int(priority_string)        
 
-        message_id:uuid = uuid.UUID(message_id_string) if message_id_string is not None else None
+        message_id:UUID = UUID(message_id_string) if message_id_string is not None else None
         action = ActionType[action_string] if action_string != None else None
         message_type = MessageType[message_type_string]
 

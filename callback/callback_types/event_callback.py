@@ -3,11 +3,12 @@ from orchestrator_sdk.contracts.types.action_type import ActionType
 from orchestrator_sdk.contracts.types.message_type import MessageType
 from orchestrator_sdk.callback.callback_types.base_callback import BaseCallback
 from typing import Literal
+from pydantic import Field
 
 import uuid
 
 class EventCallback(BaseCallback):
-    CallbackType: Literal['Events']
+    CallbackType: Literal['Events'] 
     JsonPayload:str = None
 
 

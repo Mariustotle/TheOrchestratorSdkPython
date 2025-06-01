@@ -34,7 +34,7 @@ class CommandProcessor(ProcessorBase):
         )
     
     def get_processing_context(self, headers:CommandHeaders) -> ProcessingContext: 
-        return ProcessingContext.Create(source_message_trace_id=headers.message_trace_id, source_priority=headers.priority)
+        return ProcessingContext.Create(source_message_trace_id= headers.message_trace_id, source_priority=headers.priority, message_name=headers.message_name, reference=headers.reference)
 
     async def process_specific(self, json_content, callback: CommandCallback, headers:CommandHeaders, processing_context:ProcessingContext, unit_of_work:UnitOfWork) -> object:
         response_object = None
