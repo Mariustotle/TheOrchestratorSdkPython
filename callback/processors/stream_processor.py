@@ -39,7 +39,7 @@ class StreamProcessor(ProcessorBase):
             raise Exception(f'Not a valid action for a stream [{headers.action}] expected [{ActionType.Process}]')
         
         stream_context = StreamContext.Create(action=callback.Action, event_id=callback.EventId, stream_identifier=callback.StreamIdentifier,
-                is_latest=callback.IsLatest, official_created_date=callback.OfficialCreatedDate, 
+                is_latest=callback.IsLatest, official_created_date=callback.OfficialCreatedDate, stream_segments=callback.StreamSegments,
                 effective_from_date=callback.EffectiveFromDate, effective_to_date=callback.EffectiveToDate)
         
         handler = self.stream_subscribers[headers.dispatcher]

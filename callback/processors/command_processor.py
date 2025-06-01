@@ -45,7 +45,7 @@ class CommandProcessor(ProcessorBase):
         handler = self.command_processors[headers.dispatcher]
         request =  self.json_worker.convert_json_to_class(json_content, handler.request_type)
             
-        response_object = await handler.process(request=request, command_name=headers.message_name, processing_context=processing_context, reference=headers.reference, unit_of_work=unit_of_work)        
+        response_object = await handler.process(request=request, processing_context=processing_context, unit_of_work=unit_of_work)        
         return response_object
 
         

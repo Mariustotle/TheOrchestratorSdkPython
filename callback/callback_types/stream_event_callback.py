@@ -2,7 +2,7 @@ from orchestrator_sdk.contracts.types.action_type import ActionType
 from orchestrator_sdk.contracts.types.crud_action import CrudAction
 from orchestrator_sdk.contracts.types.message_type import MessageType
 from orchestrator_sdk.callback.callback_types.base_callback import BaseCallback
-from typing import Literal, Optional
+from typing import Literal, Dict, Optional
 from pydantic import Field
 
 from uuid import UUID
@@ -18,6 +18,7 @@ class StreamEventCallback(BaseCallback):
     OfficialCreatedDate:datetime = None
     EffectiveFromDate:datetime = None
     EffectiveToDate:Optional[datetime] = None
+    StreamSegments: Dict[str, str] = None
 
 
 class StreamHeaders():
