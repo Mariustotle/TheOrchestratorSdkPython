@@ -1,15 +1,13 @@
 from typing import Optional
 from datetime import datetime, timedelta
-from sdk.logging.logger import Logger
-from orchestrator_sdk.data_access.message_broker.message_broker_publisher_interface import MessageBrokerPublisherInterface
+from orchestrator_sdk.seedworks.logger import Logger
 from orchestrator_sdk.contracts.publishing.publish_envelope import PublishEnvelope
 from orchestrator_sdk.data_access.database.unit_of_work import UnitOfWork
 from orchestrator_sdk.data_access.database.entities.message_outbox_entity import MessageOutboxEntity
 
 logger = Logger.get_instance()
 
-class PublishOutboxWith2PC(MessageBrokerPublisherInterface):
-    de_dup_delay_in_minutes:int = 30
+class OutboxPublisher:
     
     def _get_value_from_pydantic_property(self, pyprop):
         if (pyprop == None or len(pyprop) < 1):
@@ -24,17 +22,15 @@ class PublishOutboxWith2PC(MessageBrokerPublisherInterface):
                 raise Exception(f'To use the OutboxWith2PC publisher you need to impliment a UnitOfWork context')
             
             eligible_after = None            
-            if publish_instruction.de_duplication_enabled and publish_instruction.unique_header_hash is not None:
-                delay_period = timedelta(minutes=self.de_dup_delay_in_minutes)
-                eligible_after = datetime.utcnow() + delay_period            
-            
-            delay_period = timedelta(minutes=self.de_dup_delay_in_minutes)
-            
+            if publish_instruction.de_duplication_enabled and publish_instruction.unique_header_hash is not None and publish_instruction.de_duplication_delay_in_minutes > 0:
+                delay_period = timedelta(minutes=publish_instruction.de_duplication_delay_in_minutes)
+                eligible_after = datetime.utcnow() + delay_period
+                      
             pending_message = MessageOutboxEntity.Create(
                 handler_name = publish_instruction.handler_name,
                 endpoint=publish_instruction.endpoint,
                 publish_request_object=publish_instruction.publish_request,
-                source_trace_message_id=publish_instruction.source_trace_message_id,
+                processing_context=publish_instruction.processing_context,
                 de_duplication_enabled=publish_instruction.de_duplication_enabled,
                 de_duplication_delay_in_seconds=publish_instruction.de_duplication_delay_in_minutes,
                 unique_header_hash=publish_instruction.unique_header_hash, message_name=publish_instruction.message_name,

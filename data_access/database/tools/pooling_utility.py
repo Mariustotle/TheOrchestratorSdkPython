@@ -3,6 +3,7 @@ from sdk.logging.logger import Logger
 
 import asyncio
 
+
 class PoolingUtility:
     
     DB_SLEEP_IN_SECONDS:int = 5
@@ -34,13 +35,13 @@ class PoolingUtility:
             danger_zone = (pool_overflow-pool_limit) / 2
             
             if (pool_in_use > pool_limit):
-                self.logger.info(f"There are more connections open [{pool_in_use}] than the limit [{pool_limit}] it will start to fail when it reaches [{pool_overflow}]")
+                self.logger.debug(f"There are more connections open [{pool_in_use}] than the limit [{pool_limit}] it will start to fail when it reaches [{pool_overflow}]")
             
             if pool_in_use < (pool_limit + danger_zone):
                 check_pooling = False
                 
             else:
                 delay_counter += 1
-                self.logger.warn(f"Overflow is reaching dangerous levels. Delaying batch submission [{delay_counter}/{max_delays}]. The Limit: [{pool_limit}], Total Connections: [{pool_in_use}] and Overflow Threshold: [{pool_overflow}]")
+                self.logger.warning(f"Overflow is reaching dangerous levels. Delaying batch submission [{delay_counter}/{max_delays}]. The Limit: [{pool_limit}], Total Connections: [{pool_in_use}] and Overflow Threshold: [{pool_overflow}]")
                 await asyncio.sleep(self.DB_SLEEP_IN_SECONDS)
                             

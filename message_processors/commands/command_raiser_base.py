@@ -4,8 +4,8 @@ from orchestrator_sdk.seedworks.config_reader import ConfigReader
 from orchestrator_sdk.contracts.orchestrator_config import OrchestratorConfig
 from sdk.logging.logger import Logger
 from orchestrator_sdk.contracts.requests.commands.raise_command_request import RaiseCommandRequest
-from orchestrator_sdk.callback_context import CallbackContext
 from orchestrator_sdk.contracts.publishing.publish_envelope import PublishEnvelope
+from orchestrator_sdk.callback.processing_context import ProcessingContext
 
 import hashlib
 logger = Logger.get_instance()
@@ -54,15 +54,11 @@ class CommandRaiserBase(ABC, Generic[T]):
     def build_unique_header(self, request_object:T) -> Optional[str]:
         return None
    
-    def build_request(self, request_object:T, reference:Optional[str] = None, priority:Optional[int] = None) -> RaiseCommandRequest:        
+    def build_request(self, request_object:T, processing_context:ProcessingContext, reference:Optional[str] = None, priority:Optional[int] = None) -> RaiseCommandRequest:        
         serialized_payload = request_object.json()
         
         unique_header_string = self.build_unique_header(request_object) 
         unique_header_hash = CommandRaiserBase.hash_and_convert_to_string(unique_header_string)    
-        
-        source_trace_message_id = None        
-        if CallbackContext.is_available():
-            source_trace_message_id = CallbackContext.trace_message_id.get()
 
         if (priority != None and (priority < 0 or priority > 1000)):
             raise Exception(f'Trying to set priority [{priority}], failed as it is not between 1 and 1000')
@@ -70,7 +66,7 @@ class CommandRaiserBase(ABC, Generic[T]):
         publish_request = RaiseCommandRequest.Create(
                 command_name=self.command_name, command_reference=reference,
                 content=serialized_payload, application_name=self.application_name, 
-                priority=priority, source_trace_message_id=source_trace_message_id, unique_request_header_hash=unique_header_hash)
+                priority=priority, unique_request_header_hash=unique_header_hash)
 
         envelope = PublishEnvelope.Create(
             publish_request=publish_request,
@@ -78,7 +74,7 @@ class CommandRaiserBase(ABC, Generic[T]):
             message_name=self.command_name,
             handler_name=self.processor_name,
             reference=reference,
-            source_trace_message_id=source_trace_message_id,
+            processing_context=processing_context,
             priority=priority,
             de_duplication_enabled=self.de_duplication_enabled,
             de_duplication_delay_in_seconds=self.de_duplication_delay_in_minutes,

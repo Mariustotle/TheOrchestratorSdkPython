@@ -1,8 +1,9 @@
 from abc import ABC, abstractmethod
 from typing import TypeVar, Generic, Optional
-from sdk.logging.logger import Logger
+from orchestrator_sdk.seedworks.logger import Logger
 
 from orchestrator_sdk.callback.processing_context import ProcessingContext
+from orchestrator_sdk.callback.stream_context import StreamContext
 from orchestrator_sdk.seedworks.config_reader import ConfigReader
 from orchestrator_sdk.contracts.orchestrator_config import OrchestratorConfig
 from orchestrator_sdk.data_access.database.unit_of_work import UnitOfWork
@@ -11,7 +12,7 @@ T = TypeVar('T')
 
 logger = Logger.get_instance()
 
-class EventSubscriberBase(ABC, Generic[T]):
+class StreamSubscriberBase(ABC, Generic[T]):
     
     event_name:str
     processor_name:str
@@ -39,15 +40,15 @@ class EventSubscriberBase(ABC, Generic[T]):
         
         
     @abstractmethod
-    async def _process(self, request: T, context: ProcessingContext, unit_of_work:Optional[UnitOfWork] = None) -> None:
+    async def _process(self, request: T, processing_context: ProcessingContext, stream_context:StreamContext, unit_of_work:Optional[UnitOfWork] = None) -> None:
         pass    
             
-    async def process(self, request: T, processing_context: ProcessingContext, unit_of_work:Optional[UnitOfWork] = None) -> None:
+    async def process(self, request: T, processing_context: ProcessingContext, stream_context:StreamContext, unit_of_work:Optional[UnitOfWork] = None) -> None:
         if self.event_name.lower() != processing_context.message_name.lower():
             raise ValueError(f'Trying to process event [{processing_context.message_name}] in handler [{self.processor_name}] but it is not a supported.')
         
         try:
-            return await self._process(request=request, context=processing_context, unit_of_work=unit_of_work)
+            return await self._process(request=request, processing_context=processing_context, stream_context=stream_context, unit_of_work=unit_of_work)
         
         except Exception as ex:
             logger.error(f"Oops! {ex.__class__} occurred. Details: {ex}")  

@@ -5,5 +5,8 @@ class ProcessStructure(Enum):
     Undefined = 0,
     Commands = 1,
     Events = 2,
-    Batch = 3,
-    Workflow = 4
+    StreamInbound = 3,
+    StreamOutbound = 4,
+    Snapshot = 5,
+    Batch = 6,
+    Workflow = 7
