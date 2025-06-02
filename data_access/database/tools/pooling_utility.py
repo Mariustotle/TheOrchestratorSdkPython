@@ -1,5 +1,5 @@
 from sqlalchemy import Engine
-from sdk.logging.logger import Logger
+from orchestrator_sdk.seedworks.logger import Logger
 
 import asyncio
 

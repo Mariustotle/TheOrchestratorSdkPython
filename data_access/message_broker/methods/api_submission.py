@@ -1,6 +1,6 @@
 from orchestrator_sdk.contracts.publishing.publish_envelope import PublishEnvelope
 from requests import Response
-from sdk.logging.logger import Logger
+from orchestrator_sdk.seedworks.logger import Logger
 
 logger = Logger.get_instance()
 

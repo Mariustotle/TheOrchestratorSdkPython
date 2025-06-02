@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 from typing import TypeVar, Generic, Optional
-from sdk.logging.logger import Logger
+from orchestrator_sdk.seedworks.logger import Logger
 
 from orchestrator_sdk.callback.processing_context import ProcessingContext
 from orchestrator_sdk.seedworks.config_reader import ConfigReader

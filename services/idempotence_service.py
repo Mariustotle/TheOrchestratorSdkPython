@@ -3,7 +3,7 @@ from datetime import datetime, timedelta
 from orchestrator_sdk.data_access.database.repositories.message_history_repository import MessageHistoryRepository
 from orchestrator_sdk.data_access.database.unit_of_work import UnitOfWork
 from uuid import uuid4
-from sdk.logging.logger import Logger
+from orchestrator_sdk.seedworks.logger import Logger
 
 import asyncio
 
