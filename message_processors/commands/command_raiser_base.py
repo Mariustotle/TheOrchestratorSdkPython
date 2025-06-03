@@ -66,7 +66,8 @@ class CommandRaiserBase(ABC, Generic[T]):
         publish_request = RaiseCommandRequest.Create(
                 command_name=self.command_name, command_reference=reference,
                 content=serialized_payload, application_name=self.application_name, 
-                priority=priority, unique_request_header_hash=unique_header_hash)
+                priority=priority, unique_request_header_hash=unique_header_hash,
+                items_at_source=processing_context.source_message_trace_id)
 
         envelope = PublishEnvelope.Create(
             publish_request=publish_request,
