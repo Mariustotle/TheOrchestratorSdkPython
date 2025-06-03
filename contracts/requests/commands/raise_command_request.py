@@ -24,6 +24,7 @@ class RaiseCommandRequest(BaseModel):
             content: Optional[str] = None,
             items_at_source:Optional[int] = None,
             priority: Optional[int] = None,
+            source_trace_message_id:Optional[str] = None,
             unique_request_header_hash: Optional[str] = None): 
         
         return RaiseCommandRequest(
@@ -34,5 +35,6 @@ class RaiseCommandRequest(BaseModel):
             Content = content,
             ItemsRemainingAtSource=items_at_source,
             Priority = priority,
+            SourceTraceMessageId=source_trace_message_id,
             UniqueRequestHeaderHash = unique_request_header_hash            
         )
