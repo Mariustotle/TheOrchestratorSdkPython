@@ -1,7 +1,7 @@
 
 from enum import Enum
 
-class ActionType(Enum):
+class ActivityTypeEnum(Enum):
     Undefined = 0,
     Process = 1,
     Rollback = 2,

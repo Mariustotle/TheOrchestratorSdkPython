@@ -5,7 +5,7 @@ from orchestrator_sdk.callback.stream_context import StreamContext
 from orchestrator_sdk.callback.callback_types.stream_event_callback import StreamEventCallback, StreamHeaders
 from orchestrator_sdk.message_processors.StreamOutbound.stream_subscriber_base import StreamSubscriberBase
 from orchestrator_sdk.callback.header_properties import HeaderProperties
-from orchestrator_sdk.contracts.types.action_type import ActionType
+from orchestrator_sdk.contracts.types.activity_type import ActivityTypeEnum
 
 
 class StreamProcessor(ProcessorBase):
@@ -23,7 +23,7 @@ class StreamProcessor(ProcessorBase):
             message_name=headers.message_name,
             application_name=headers.application_name,
             dispatcher=headers.dispatcher,
-            action_string=headers.action,
+            activity_type_string=headers.activity_type,
             message_type_string=headers.message_type,
             reference=headers.reference,
             priority_string=headers.priority
@@ -35,8 +35,8 @@ class StreamProcessor(ProcessorBase):
     async def process_specific(self, json_content, callback: StreamEventCallback, headers:StreamHeaders, processing_context:ProcessingContext, unit_of_work:UnitOfWork) -> object:
         response_object = None
 
-        if (headers.action != None and headers.action != ActionType.Process):
-            raise Exception(f'Not a valid action for a stream [{headers.action}] expected [{ActionType.Process}]')
+        if (headers.activity_type != None and headers.activity_type != ActivityTypeEnum.Process):
+            raise Exception(f'Not a valid action for a stream [{headers.activity_type}] expected [{ActivityTypeEnum.Process}]')
         
         stream_context = StreamContext.Create(action=callback.Action, event_id=callback.EventId, stream_identifier=callback.StreamIdentifier,
                 is_latest=callback.IsLatest, official_created_date=callback.OfficialCreatedDate, stream_segments=callback.StreamSegments,

@@ -6,7 +6,7 @@ from orchestrator_sdk.message_processors.commands.command_processor_base import 
 from orchestrator_sdk.message_processors.commands.command_raiser_base import CommandRaiserBase
 from orchestrator_sdk.callback.header_properties import HeaderProperties
 from orchestrator_sdk.callback.processing_context import ProcessingContext
-from orchestrator_sdk.contracts.types.action_type import ActionType
+from orchestrator_sdk.contracts.types.activity_type import ActivityTypeEnum
 
 
 class CommandProcessor(ProcessorBase):
@@ -27,7 +27,7 @@ class CommandProcessor(ProcessorBase):
             message_name=headers.message_name,
             application_name=headers.application_name,
             dispatcher=headers.dispatcher,
-            action_string=headers.action,
+            activity_type_string=headers.activity_type,
             message_type_string=headers.message_type,
             reference=headers.reference,
             priority_string=headers.priority
@@ -39,8 +39,8 @@ class CommandProcessor(ProcessorBase):
     async def process_specific(self, json_content, callback: CommandCallback, headers:CommandHeaders, processing_context:ProcessingContext, unit_of_work:UnitOfWork) -> object:
         response_object = None
 
-        if (headers.action != None and headers.action != ActionType.Process):
-            raise Exception(f'Not a valid action for a command [{headers.action}] expected [{ActionType.Process}]')
+        if (headers.activity_type != None and headers.activity_type != ActivityTypeEnum.Process):
+            raise Exception(f'Not a valid action for a command [{headers.activity_type}] expected [{ActivityTypeEnum.Process}]')
 
         handler = self.command_processors[headers.dispatcher]
         request =  self.json_worker.convert_json_to_class(json_content, handler.request_type)

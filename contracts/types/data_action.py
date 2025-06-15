@@ -1,7 +1,7 @@
 
 from enum import Enum
 
-class CrudAction(Enum):
+class DataActionType(Enum):
     Undefined = 0
     Add = 1
     Update = 2
