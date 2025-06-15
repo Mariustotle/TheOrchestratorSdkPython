@@ -11,11 +11,11 @@ class HeaderProperties:
     process_structure: str = None
     dispatcher: str = None
     reference: str = None
-    action: str = None
+    activity_type: str = None
     application_name: str = None
     priority: str = None
 
-    def __init__(self, account_id, application_name, message_id, trace_message_id, group_trace_key, dispatcher, message_name, message_type, process_structure, reference, action, priority = None): 
+    def __init__(self, account_id, application_name, message_id, trace_message_id, group_trace_key, dispatcher, message_name, message_type, process_structure, reference, activity_type, priority = None): 
         self.callback_reference = uuid.uuid4()
         self.account_id = account_id
         self.application_name = application_name
@@ -27,6 +27,6 @@ class HeaderProperties:
         self.group_trace_key = group_trace_key
         self.dispatcher = dispatcher
         self.reference = reference
-        self.action = action
+        self.activity_type = activity_type
         self.priority = priority
 
