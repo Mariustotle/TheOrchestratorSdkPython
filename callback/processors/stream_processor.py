@@ -38,7 +38,7 @@ class StreamProcessor(ProcessorBase):
         if (headers.activity_type != None and headers.activity_type != ActivityTypeEnum.Process):
             raise Exception(f'Not a valid action for a stream [{headers.activity_type}] expected [{ActivityTypeEnum.Process}]')
         
-        stream_context = StreamContext.Create(action=callback.Action, event_id=callback.EventId, stream_identifier=callback.StreamIdentifier,
+        stream_context = StreamContext.Create(data_action=callback.DataAction, event_id=callback.EventId, stream_identifier=callback.StreamIdentifier,
                 is_latest=callback.IsLatest, official_created_date=callback.OfficialCreatedDate, stream_segments=callback.StreamSegments,
                 effective_from_date=callback.EffectiveFromDate, effective_to_date=callback.EffectiveToDate)
         
