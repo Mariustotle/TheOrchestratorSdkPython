@@ -13,6 +13,7 @@ class PublishEventRequest(BaseModel):
     Priority:Optional[int] = None
     UniqueRequestHeaderHash: Optional[str] = None
     SourceTraceMessageId: Optional[str] = None
+    SourceMapMessageId: Optional[str] = None
     ItemsRemainingAtSource: Optional[int] = None
     
     @staticmethod
@@ -25,6 +26,7 @@ class PublishEventRequest(BaseModel):
             event_reference:Optional[str] = None,
             event_version:Optional[str] = None,
             source_trace_message_id:Optional[str] = None,
+            source_map_message_id:Optional[str] = None,
             unique_request_header_hash:Optional[str] = None):     
         
         return PublishEventRequest(
@@ -36,6 +38,7 @@ class PublishEventRequest(BaseModel):
             ItemsRemainingAtSource=items_at_source,
             Priority = priority,
             SourceTraceMessageId = source_trace_message_id,
+            SourceMapMessageId = source_map_message_id,
             UniqueRequestHeaderHash = unique_request_header_hash
         )
 

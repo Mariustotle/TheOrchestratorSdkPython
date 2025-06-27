@@ -19,6 +19,7 @@ class StreamProcessor(ProcessorBase):
     def get_header_properties(self, headers:HeaderProperties) -> StreamHeaders:
         return StreamHeaders.Create(
             message_trace_id_string=headers.trace_message_id,
+            map_message_id_string=headers.map_message_id,
             message_id_string=headers.message_id,
             message_name=headers.message_name,
             application_name=headers.application_name,
@@ -30,7 +31,7 @@ class StreamProcessor(ProcessorBase):
         )
     
     def get_processing_context(self, headers:StreamHeaders) -> ProcessingContext: 
-        return ProcessingContext.Create(source_message_trace_id=headers.message_trace_id, source_priority=headers.priority, message_name=headers.message_name, reference=headers.reference)
+        return ProcessingContext.Create(source_message_trace_id=headers.message_trace_id, source_map_message_id=headers.map_message_id, source_priority=headers.priority, message_name=headers.message_name, reference=headers.reference)
 
     async def process_specific(self, json_content, callback: StreamEventCallback, headers:StreamHeaders, processing_context:ProcessingContext, unit_of_work:UnitOfWork) -> object:
         response_object = None
