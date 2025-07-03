@@ -2,11 +2,12 @@ from orchestrator_sdk.data_access.database.entities.message_outbox_entity import
 from orchestrator_sdk.contracts.local_persistence.message_outbox_schema import MessageOutboxSchema
 from orchestrator_sdk.data_access.database.outbox_status import OutboxStatus
 from orchestrator_sdk.data_access.database.repository_base import RepositoryBase
-from sqlalchemy import func
+from orchestrator_sdk.contracts.health.outbox_summary import OutboxSummary
+from sqlalchemy import and_, func, or_
 
 from sqlalchemy.orm import Session
 from uuid import uuid4
-from typing import List
+from typing import List, Dict
 from datetime import datetime, timedelta, timezone
 
 class ReadyForSubmissionBatch():
@@ -68,14 +69,14 @@ class MessageOutboxRepository(RepositoryBase):
         
         # Update the status of each message to 'Preperation'
         for message in pending_messages:
-            message.status = OutboxStatus.Preperation.name
+            message.status = OutboxStatus.Preparation.name
             message_modified = True
             
         return message_modified
     
     def complete_outbox_message_in_transaction(self):
         # Find all pending messages for the given transaction_id
-        pending_messages = self.session.query(MessageOutboxEntity).filter_by(transaction_reference=str(self.transaction_reference), status=OutboxStatus.Preperation.name).all()
+        pending_messages = self.session.query(MessageOutboxEntity).filter_by(transaction_reference=str(self.transaction_reference), status=OutboxStatus.Preparation.name).all()
         message_modified:bool = False
         
         # Update the status of each message to 'Ready'
@@ -143,7 +144,7 @@ class MessageOutboxRepository(RepositoryBase):
         ready_count = self.session.query(MessageOutboxEntity).filter(MessageOutboxEntity.status == OutboxStatus.Ready.name,
                 (MessageOutboxEntity.eligible_after == None) | (MessageOutboxEntity.eligible_after < datetime.utcnow())).count()
         not_completed_count = self.session.query(MessageOutboxEntity).filter(MessageOutboxEntity.is_completed == False).count()
-        need_intervention_count = self.session.query(MessageOutboxEntity).filter(MessageOutboxEntity.status == OutboxStatus.Preperation.name).count() 
+        need_intervention_count = self.session.query(MessageOutboxEntity).filter(MessageOutboxEntity.status == OutboxStatus.Preparation.name).count() 
         
         next_messages = self.session.query(MessageOutboxEntity)\
             .filter(
@@ -163,3 +164,52 @@ class MessageOutboxRepository(RepositoryBase):
     
     async def delete_old_message_history(self, session:Session):        
         session.query(MessageOutboxEntity).filter(MessageOutboxEntity.is_completed == True).delete()
+
+    async def get_outbox_summary_async(self) -> OutboxSummary:
+        now = datetime.utcnow()
+
+        rows = (
+            self.session
+                .query(MessageOutboxEntity.message_name,
+                    func.count().label("cnt"))
+                .filter(MessageOutboxEntity.is_completed == False)
+                .group_by(MessageOutboxEntity.message_name)
+                .all()
+        )
+        remaining_messages = {name: cnt for name, cnt in rows}
+
+        ready_for_submission = (
+            self.session
+                .query(func.count())
+                .filter(
+                    MessageOutboxEntity.is_completed == False,
+                    or_(
+                        MessageOutboxEntity.status == OutboxStatus.Ready.name,
+                        and_(
+                            MessageOutboxEntity.status == OutboxStatus.Retry.name,
+                            or_(
+                                MessageOutboxEntity.eligible_after.is_(None),
+                                MessageOutboxEntity.eligible_after < now,
+                            )
+                        ),
+                    )
+                )
+                .scalar() 
+        )
+
+        detached_messages = (
+            self.session
+                .query(func.count())
+                .filter(MessageOutboxEntity.status ==
+                        OutboxStatus.Preparation.name)
+                .scalar()
+        )
+
+        return OutboxSummary.Create(
+            pending_messages                    = remaining_messages,
+            total_items_ready_for_submission    = ready_for_submission,
+            detached_messages                   = detached_messages,
+            total_items_pending_submission      = sum(remaining_messages.values())
+        )
+
+

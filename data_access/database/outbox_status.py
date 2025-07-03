@@ -7,6 +7,6 @@ class OutboxStatus(Enum):
     Retry = 3
     Failed = 4
     Published = 5
-    Preperation = 6
+    Preparation = 6
     Rollback = 7
     Duplicate = 8
