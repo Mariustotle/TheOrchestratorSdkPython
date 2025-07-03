@@ -40,6 +40,7 @@ async def get_callback_context(request: Request) -> HeaderProperties:
     dispatcher = request.query_params.get("Dispatcher")
     activity_type = request.query_params.get("ActivityType")
     priority = request.query_params.get("Priority")
+    map_message_id = request.query_params.get("MapMessageId")
 
     return HeaderProperties(
         account_id=account_id,
@@ -53,7 +54,8 @@ async def get_callback_context(request: Request) -> HeaderProperties:
         reference=reference,
         activity_type=activity_type,
         application_name=application_name,
-        priority=priority
+        priority=priority,
+        map_message_id=map_message_id
     )
 
 
