@@ -15,7 +15,7 @@ from orchestrator_sdk.callback.callback_types.event_callback import EventCallbac
 from orchestrator_sdk.callback.callback_types.stream_event_callback import StreamEventCallback
 
 from orchestrator_sdk.app.orchestration_app import orchestration_app
-from src.database.application_database import application_database
+# from src.database.application_database import application_database
 
 message_router = APIRouter()
 logger = Logger.get_instance()
@@ -24,7 +24,7 @@ json_worker = JsonWorker()
 
 EventUnion = Union[CommandCallback, EventCallback, StreamEventCallback]
 
-async def get_unit_of_work() -> UnitOfWork:
+async def get_unit_of_work(application_database = None) -> UnitOfWork:
     return UnitOfWork(application_database)
 
 async def get_callback_context(request: Request) -> HeaderProperties:

@@ -1,7 +1,6 @@
 from fastapi import HTTPException
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
-from src.database.application_database import application_database
 from orchestrator_sdk.seedworks.logger import Logger
 from orchestrator_sdk.data_access.database.unit_of_work import UnitOfWork
 from orchestrator_sdk.services.health_service import HealthService
@@ -15,7 +14,7 @@ async def ClientHealth():
 
     try:       
 
-        unit_of_work = UnitOfWork(application_database)       
+        unit_of_work = UnitOfWork()       
         with unit_of_work as uow:
            
            service = HealthService(uow)
