@@ -44,8 +44,7 @@ class UnitOfWork:
         # Special constructor parameters
         self.add_repository(MessageOutboxRepository(session=self.message_session, transaction_reference=self.transaction_reference))
         self.message_outbox_repository = self.get_repository(MessageOutboxRepository)
-        self.message_history_repository = self.get_repository(MessageHistoryRepository)   
-        
+        self.message_history_repository = self.get_repository(MessageHistoryRepository)        
         
         if (self.application_database != None) :
             self.application_session = self.application_database.db_session_maker()

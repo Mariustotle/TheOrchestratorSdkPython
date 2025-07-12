@@ -24,7 +24,7 @@ json_worker = JsonWorker()
 
 EventUnion = Union[CommandCallback, EventCallback, StreamEventCallback]
 
-async def get_unit_of_work(application_database = None) -> UnitOfWork:
+async def get_unit_of_work() -> UnitOfWork:
     return UnitOfWork(application_database)
 
 async def get_callback_context(request: Request) -> HeaderProperties:
@@ -63,7 +63,7 @@ async def get_callback_context(request: Request) -> HeaderProperties:
 async def callback(
     event: EventUnion = Body(...),
     headers: HeaderProperties = Depends(get_callback_context),
-    unit_of_work: UnitOfWork = Depends(get_unit_of_work)):  
+    unit_of_work: UnitOfWork = Depends((get_unit_of_work))):  
 
     try:        
         response = None
