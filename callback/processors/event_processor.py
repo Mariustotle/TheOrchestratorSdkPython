@@ -23,18 +23,19 @@ class EventProcessor(ProcessorBase):
         return EventHeaders.Create(
             message_trace_id_string=headers.trace_message_id,
             map_message_id_string=headers.map_message_id,
-            message_id_string=headers.message_id,
             message_name=headers.message_name,
             application_name=headers.application_name,
             dispatcher=headers.dispatcher,
             activity_type_string=headers.activity_type,
             message_type_string=headers.message_type,
             reference=headers.reference,
-            priority_string=headers.priority
+            priority_string=headers.priority,
+            group_trace_key_string=headers.group_trace_key
         )
     
     def get_processing_context(self, headers:EventHeaders) -> ProcessingContext: 
-        return ProcessingContext.Create(source_message_trace_id= headers.message_trace_id, source_map_message_id=headers.map_message_id, source_priority=headers.priority, message_name=headers.message_name, reference=headers.reference)
+        return ProcessingContext.Create(source_message_trace_id= headers.message_trace_id, source_map_message_id=headers.map_message_id,
+            source_priority=headers.priority, message_name=headers.message_name, reference=headers.reference, group_trace_key=headers.group_trace_key)
 
     async def process_specific(self, json_content, callback: EventCallback, headers:EventHeaders, processing_context:ProcessingContext, unit_of_work:UnitOfWork) -> object:
         response_object = None

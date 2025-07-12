@@ -131,7 +131,7 @@ class OutboxBackgroundService:
             
             process_context = ProcessingContext.Create(
                 source_message_trace_id=msg_source_message_trace_id, source_map_message_id=message.source_map_message_id, source_priority=None,
-                message_name=message.message_name, reference=message.transaction_reference)
+                message_name=message.message_name, reference=message.transaction_reference, group_trace_key=message.group_trace_key)
                                         
             envelope = PublishEnvelope.Create(
                     endpoint=message.endpoint,

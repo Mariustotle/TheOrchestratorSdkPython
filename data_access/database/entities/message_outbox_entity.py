@@ -3,6 +3,7 @@ from sqlalchemy import Column, String, DATETIME, Boolean, Integer, Index
 from orchestrator_sdk.data_access.database.outbox_status import OutboxStatus
 from orchestrator_sdk.data_access.database.message_entity_base import MessageEntityBase
 from orchestrator_sdk.callback.processing_context import ProcessingContext
+from sqlalchemy_utils import UUIDType 
 
 from datetime import datetime
 
@@ -21,8 +22,9 @@ class MessageOutboxEntity(MessageEntityBase):
     de_duplication_enabled = Column(Boolean, nullable=False)
     de_duplication_delay_in_seconds = Column(Integer, nullable=True)
     unique_header_hash = Column(String, nullable=True)
-    source_trace_message_id = Column(String, nullable=True)
-    source_map_message_id = Column(String, nullable=True)
+    group_trace_key = Column(UUIDType(binary=False), default=None, nullable=True)
+    source_trace_message_id = Column(UUIDType(binary=False), default=None, nullable=True)
+    source_map_message_id = Column(UUIDType(binary=False), default=None, nullable=True)
     process_count = Column(Integer, nullable=False)
     eligible_after = Column(DATETIME, nullable=True)
     endpoint = Column(String, nullable=False)
@@ -56,6 +58,7 @@ class MessageOutboxEntity(MessageEntityBase):
             handler_name = handler_name,
             source_trace_message_id = processing_context.source_message_trace_id,
             source_map_message_id = processing_context.source_map_message_id,
+            group_trace_key = processing_context.group_trace_key,
             process_count = 0,
             de_duplication_enabled = de_duplication_enabled,
             de_duplication_delay_in_seconds = de_duplication_delay_in_seconds,

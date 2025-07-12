@@ -64,10 +64,10 @@ class CommandRaiserBase(ABC, Generic[T]):
             raise Exception(f'Trying to set priority [{priority}], failed as it is not between 1 and 1000')
 
         publish_request = RaiseCommandRequest.Create(
+                processing_context=processing_context,
                 command_name=self.command_name, command_reference=reference,
                 content=serialized_payload, application_name=self.application_name, 
-                priority=priority, unique_request_header_hash=unique_header_hash,
-                source_trace_message_id=processing_context.source_message_trace_id)
+                priority=priority, unique_request_header_hash=unique_header_hash)
 
         envelope = PublishEnvelope.Create(
             publish_request=publish_request,

@@ -78,8 +78,8 @@ class EventPublisherBase(ABC, Generic[T]):
             raise Exception(f'Trying to set priority [{priority}], failed as it is not between 1 and 1000')
        
         publish_request:PublishEventRequest = PublishEventRequest.Create(
-            application_name=self.application_name, event_name=self.event_name, priority=priority, event_version=self.latest_version, 
-            event_reference=reference, content=serialized_payload, unique_request_header_hash=unique_header_hash, source_trace_message_id=processing_context.source_message_trace_id)
+            processing_context=processing_context, application_name=self.application_name, event_name=self.event_name, priority=priority, event_version=self.latest_version, 
+            event_reference=reference, content=serialized_payload, unique_request_header_hash=unique_header_hash)
             
         envelope = PublishEnvelope.Create(
             publish_request=publish_request,
