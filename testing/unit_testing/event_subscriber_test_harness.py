@@ -16,7 +16,10 @@ class EventSubscriberTestHarness:
             raise Exception(f'Canot intiate subscriber [{type(self.subscriber)}] with [{type(callback_message)}] expecting [{self.subscriber.request_type}]')
 
         process_context = self.process_context_builder.build()
-        return await self.subscriber._process(request=callback_message, context=process_context, unit_of_work=None)
+        return await self.subscriber._process(
+            request=callback_message, 
+            context=process_context, 
+            unit_of_work=None)
 
     
 

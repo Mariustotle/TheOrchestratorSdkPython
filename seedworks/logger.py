@@ -1,4 +1,6 @@
 from loguru import logger
+from pathlib import Path
+
 import os
 from orchestrator_sdk.seedworks.config_reader import ConfigReader
 from orchestrator_sdk.seedworks.contracts.logging import Logging
@@ -37,36 +39,29 @@ class Logger:
     @staticmethod
     def _setup_logger():
         try:
-            config_reader = ConfigReader()
+            logger_settings = ConfigReader().section("logging", Logging)
 
-            logger_settings = config_reader.section('logging', Logging)            
-            log_level = _get_log_level(logger_settings.level)
-            log_filename =  logger_settings.file_name
-            log_file_path = logger_settings.path
-            max_file_size_mb = logger_settings.max_file_size_in_mb
-            max_number_of_files = logger_settings.max_number_of_files
+            log_dir  = Path(logger_settings.path)
+            log_dir.mkdir(parents=True, exist_ok=True)
 
-            os.makedirs(log_file_path, exist_ok=True)
-
-            log_format:str = None
-
-            if (hasattr(logger_settings, "log_format") == False or logger_settings.log_format == ""):
-                log_format = "{time:YYYY-MM-DD HH:mm:ss.SSS} | {level: <8} | {module}.{function}:{line} - {message}"
-            else:
-                log_format = logger_settings.log_format            
+            log_file = log_dir / logger_settings.file_name 
 
             logger.add(
-                f"{log_file_path}/{log_filename}",
-                level=log_level,
-                rotation=f"{max_file_size_mb} MB",
-                retention=max_number_of_files,
-                enqueue=True,  # Safe in multi-threaded apps
+                log_file,
+                level=_get_log_level(logger_settings.level),
+                rotation=f"{logger_settings.max_file_size_in_mb} MB",
+                retention=logger_settings.max_number_of_files,
+                enqueue=True,
                 backtrace=True,
-                compression="zip",  # Compress old log files
-                format=log_format
+                compression="zip",
+                format=(logger_settings.log_format or
+                        "{time:YYYY-MM-DD HH:mm:ss.SSS} | "
+                        "{level:<8} | {module}.{function}:{line} - {message}")
             )
 
-            return logger
+            # logger.info(f'Logger Initialized')
+
+            return logger        
 
         except Exception as ex:
             print(f"Oops! {ex.__class__} occurred. Unable to initialize the logger. Details: {ex}")
