@@ -37,6 +37,7 @@ class OutboxBackgroundService:
     item_delay: float = None
     long_batch_delay: float = None
     batch_delay: float = None
+    successfull_submission: bool = False
 
     pooling_utility:PoolingUtility = None
     message_database:MessageDatabase = None 
@@ -118,6 +119,8 @@ class OutboxBackgroundService:
         if (self.pending_message_counts != None and message_name in self.pending_message_counts):
             counter = self.pending_message_counts[message_name]
             self.pending_message_counts[message_name] = counter - 1
+        
+        self.successfull_submission = True
 
     async def publish_one(self, message:MessageOutboxEntity, api_caller:ApiSubmission, content:str):
         try:
@@ -197,6 +200,7 @@ class OutboxBackgroundService:
                 self.batch_error_count = 0
                 self.batch_concurrent_error_count = 0
                 self.process_count = 0
+                self.successfull_submission = False
                 last_submission_count = 0
                 
                 api_caller:ApiSubmission = None
@@ -230,32 +234,46 @@ class OutboxBackgroundService:
                             logger.warning(f'Timeout while cleaning up outbox (Cleanup | Remove Duplicates)] - Not stopping, continuing with outbox processing.')                
                     
                     with Timer("Database connection throttling"):
-                        await self.pooling_utility.throttle_database_connections()
+                        await self.pooling_utility.throttle_database_connections()                    
 
-                    with Timer("Get next messages from DB"):                        
-                        batch_result:ReadyForSubmissionBatch = await asyncio.wait_for(outbox_repo.get_next_messages(batch_size=self.batch_size), timeout=60)
+                    pendingCounts = outbox_repo.get_pending_message_counts()
 
-                    with Timer(f"Submit messages to Orchestrator [{len(batch_result.messages)}]"):                                            
-                        # Launch publishing tasks with bounded concurrency.
-                        for message in batch_result.messages:  
-                            await asyncio.sleep(self.item_delay)
+                    for key, value in pendingCounts.items():
+                        backlog = []
 
-                            await self.semaphore.acquire()
-                            last_submission_count += 1
+                        messageByType:ReadyForSubmissionBatch = await asyncio.wait_for(outbox_repo.get_next_messages(batch_size=self.batch_size, message_name=key), timeout=60)
+                        backlog.extend(messageByType.messages)                           
 
-                            asyncio.create_task(self.publish_one(message, api_caller, message.publish_request_object))
+                        if (len(backlog) < self.batch_size):
+                            remaining_count = self.batch_size - len(backlog)
 
-                            current_count = submitted_messages.get(message.message_name, 0)
-                            submitted_messages[message.message_name] = current_count + 1                               
-                        
-                        try:
-                            await asyncio.wait_for(self.semaphore.wait_for_all_released(), timeout=10)
+                            fillerMessages:ReadyForSubmissionBatch = await asyncio.wait_for(outbox_repo.get_next_messages(batch_size=remaining_count), timeout=60)
+                            backlog.extend(fillerMessages.messages) 
 
-                        except asyncio.TimeoutError:                            
-                            logger.warning(f'Could not wait for all instances to be released.')                
-                            self.semaphore = DynamicSemaphore(self.max_parallel)                        
+                        if (len(backlog) <= 0):
+                            break
 
-                    if (batch_result != None and batch_result.messages_not_completed > 0 and last_submission_count > 0):
+                        with Timer(f"Submit messages to Orchestrator [{len(backlog)}]"):                                            
+                            # Launch publishing tasks with bounded concurrency.
+                            for message in backlog:  
+                                await asyncio.sleep(self.item_delay)
+
+                                await self.semaphore.acquire()
+                                last_submission_count += 1
+
+                                asyncio.create_task(self.publish_one(message, api_caller, message.publish_request_object))
+
+                                current_count = submitted_messages.get(message.message_name, 0)
+                                submitted_messages[message.message_name] = current_count + 1                               
+                            
+                            try:
+                                await asyncio.wait_for(self.semaphore.wait_for_all_released(), timeout=10)
+
+                            except asyncio.TimeoutError:                            
+                                logger.warning(f'Could not wait for all instances to be released.')                
+                                self.semaphore = DynamicSemaphore(self.max_parallel)                        
+
+                    if (self.successfull_submission == True):
                         long_wait = False                        
                     else:
                         long_wait = True                        

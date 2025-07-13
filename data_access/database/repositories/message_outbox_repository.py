@@ -7,7 +7,7 @@ from sqlalchemy import and_, func, or_
 
 from sqlalchemy.orm import Session
 from uuid import uuid4
-from typing import List, Dict
+from typing import List, Dict, Optional
 from datetime import datetime, timedelta, timezone
 
 class ReadyForSubmissionBatch():
@@ -139,18 +139,26 @@ class MessageOutboxRepository(RepositoryBase):
         self.session.commit()
                 
 
-    async def get_next_messages(self, batch_size: int) -> ReadyForSubmissionBatch:
+    async def get_next_messages(self, batch_size: int, message_name:Optional[str] = None) -> ReadyForSubmissionBatch:
        
         ready_count = self.session.query(MessageOutboxEntity).filter(MessageOutboxEntity.status == OutboxStatus.Ready.name,
                 (MessageOutboxEntity.eligible_after == None) | (MessageOutboxEntity.eligible_after < datetime.utcnow())).count()
         not_completed_count = self.session.query(MessageOutboxEntity).filter(MessageOutboxEntity.is_completed == False).count()
         need_intervention_count = self.session.query(MessageOutboxEntity).filter(MessageOutboxEntity.status == OutboxStatus.Preparation.name).count() 
         
+        predicates = [
+            MessageOutboxEntity.status == OutboxStatus.Ready.name,
+            or_(
+                MessageOutboxEntity.eligible_after.is_(None),
+                MessageOutboxEntity.eligible_after < datetime.utcnow(),
+            ),
+        ]
+
+        if message_name is not None:
+            predicates.append(MessageOutboxEntity.message_name == message_name)
+
         next_messages = self.session.query(MessageOutboxEntity)\
-            .filter(
-                MessageOutboxEntity.status == OutboxStatus.Ready.name,
-                (MessageOutboxEntity.eligible_after == None) | (MessageOutboxEntity.eligible_after < datetime.utcnow())
-            )\
+            .filter(*predicates)\
             .order_by(MessageOutboxEntity.priority.desc(), MessageOutboxEntity.created_date)\
             .limit(batch_size)\
             .all()
