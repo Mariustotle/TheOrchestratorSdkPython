@@ -6,6 +6,7 @@ from pydantic import Field
 
 from orchestrator_sdk.callback.processing_context import ProcessingContext
 from orchestrator_sdk.data_access.message_broker.methods.api_submission import ApiSubmission
+from orchestrator_sdk.seedworks.message_dispatched_queue import MessageDispatchedQueue
 
 from typing import Optional, List
 from datetime import datetime, timedelta
@@ -38,6 +39,7 @@ class OutboxBackgroundService:
     long_batch_delay: float = None
     batch_delay: float = None
     successfull_submission: bool = False
+    dispatched_queue:MessageDispatchedQueue = None
 
     pooling_utility:PoolingUtility = None
     message_database:MessageDatabase = None 
@@ -64,9 +66,9 @@ class OutboxBackgroundService:
         self.batch_delay = orchestrator_settings.outbox.batch_delay if orchestrator_settings.outbox.batch_delay != None else 10
 
         # Create a real semaphore instance
-        self.semaphore = DynamicSemaphore(self.max_parallel)     
+        self.semaphore = DynamicSemaphore(self.max_parallel)
+        self.dispatched_queue = MessageDispatchedQueue(capacity=200)
 
-            
     async def update_remaining_message_counters(self, repo:MessageOutboxRepository):
         pending_counters = repo.get_pending_message_counts()        
         self.pending_message_counts = pending_counters
@@ -166,6 +168,7 @@ class OutboxBackgroundService:
             logger.debug(f'MESSAGE DB POOL STATUS: [{self.message_database.db_engine.pool.status()}]')
             # Do not incriment or apply exponential backoff if a connection could not be established
 
+            self.dispatched_queue.try_remove(message.id)
             return False
             
         except Exception as ex:
@@ -182,6 +185,8 @@ class OutboxBackgroundService:
             if (self.batch_concurrent_error_count > 5 and self.stop_concurrent_submission == False):                
                 self.stop_concurrent_submission = True      # Stop concurrent submission 
                 self.semaphore.set_new_limit(1)
+
+            self.dispatched_queue.try_remove(message.id)
                 
         finally:
             self.semaphore.release()
@@ -257,6 +262,9 @@ class OutboxBackgroundService:
                             # Launch publishing tasks with bounded concurrency.
                             for message in backlog:  
                                 await asyncio.sleep(self.item_delay)
+                                if (self.dispatched_queue.try_add(message.id) == False):
+                                    logger.warning(f'Unable to dispatch message [{message.id}] as it is already in the dispatched queue.')
+                                    continue
 
                                 await self.semaphore.acquire()
                                 last_submission_count += 1
