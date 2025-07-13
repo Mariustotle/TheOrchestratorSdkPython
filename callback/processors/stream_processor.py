@@ -26,6 +26,7 @@ class StreamProcessor(ProcessorBase):
             activity_type_string=headers.activity_type,
             message_type_string=headers.message_type,
             reference=headers.reference,
+            group_trace_key_string=headers.group_trace_key,
             priority_string=headers.priority
         )
     
