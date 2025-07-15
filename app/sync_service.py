@@ -50,16 +50,20 @@ class SyncService():
         is_successfull:bool = False
         
         try:
-            
+
             repo = MessageOutboxRepository(session, None)            
             pending_message_counts = repo.get_pending_message_counts()
             
-            update_webhook_endpoint = endpoints.get_sync_default_webhook_endpoint()             
-            self.sync_default_webhook(update_webhook_endpoint,
+            update_webhook_endpoint = endpoints.get_sync_default_webhook_endpoint()
+
+            if (settings.use_simulator):
+                logger.success(f'Simulated startup webhook sync to server. Webhook Name: [{settings.default_callback_webhook.name}] Destination: [{settings.default_callback_webhook.url}]')
+            else:
+                self.sync_default_webhook(update_webhook_endpoint,
                     settings.default_callback_webhook.name, 
                     settings.application_name, 
                     settings.default_callback_webhook.url, 
-                    settings.default_callback_webhook.api_token)           
+                    settings.default_callback_webhook.api_token)            
                  
             event_subscriptions_reg = self.build_event_subscriptions(event_subscribers) if event_subscribers != None else None
             event_publishers_reg = self.build_event_publishers(event_publishers, pending_message_counts) if event_publishers != None else None
@@ -68,7 +72,18 @@ class SyncService():
             stream_subscriptions_reg = self.build_stream_subscriptions(stream_subscribers) if stream_subscribers != None else None
             
             sync_application_message_processors_endpoint = endpoints.get_sync_application_message_processors()
-            self.sync_applicaton_message_processors(
+
+            if (settings.use_simulator):
+                event_publisher_count = len(event_publishers_reg) if event_publishers != None else 0
+                event_subscriber_count = len(event_subscriptions_reg) if event_subscribers != None else 0
+                command_raiser_count = len(command_raisers_reg) if command_raisers != None else 0
+                command_processor_count = len(command_processors_reg) if command_processors != None else 0
+                stream_subscriber_count = len(stream_subscriptions_reg) if stream_subscribers != None else 0
+            
+                logger.success(f'Message Proceessors Syncronization simulated. Event Publishers [{event_publisher_count}], Event Subscribers [{event_subscriber_count}], Command Raisers [{command_raiser_count}], Command Processors [{command_processor_count}], Stream Subscribers [{stream_subscriber_count}]')
+            
+            else:
+                self.sync_applicaton_message_processors(
                     endpoint = sync_application_message_processors_endpoint,
                     application_name = settings.application_name,
                     event_subscribers = event_subscriptions_reg,
@@ -76,7 +91,7 @@ class SyncService():
                     command_raisers = command_raisers_reg,
                     command_processors = command_processors_reg,
                     stream_subscribers = stream_subscriptions_reg
-                    )     
+                    )              
             
             self.SuccessfullyInitiatlized = True
             

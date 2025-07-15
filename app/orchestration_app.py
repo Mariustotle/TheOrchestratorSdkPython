@@ -17,6 +17,8 @@ from typing import Optional
 from orchestrator_sdk.data_access.database.database_context import DatabaseContext
 from orchestrator_sdk.data_access.database.message_database import message_database
 
+from orchestrator_sdk.seedworks.logger import Logger
+logger = Logger.get_instance()
 
 class OrchestrationApp():
     
@@ -88,6 +90,9 @@ class OrchestrationApp():
         sync_service = SyncService() 
         self.syncronized_with_orchestrator = sync_service.init(settings=self.orchestrator_settings, endpoints=self.endpoints, 
            event_publishers=publishers, event_subscribers=subscribers, command_raisers=raisers, command_processors=processors, stream_subscribers=stream_subscribers)
+        
+        if (self.orchestrator_settings.use_simulator):
+            logger.warning('The Orchestrator client is currently run in SIMULATOR mode only intended for local testing.')
         
 orchestration_app = OrchestrationApp()
 

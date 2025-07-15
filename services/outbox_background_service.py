@@ -54,10 +54,17 @@ class OutboxBackgroundService:
     batch_concurrent_error_count: int = 0
     stop_concurrent_submission:bool = False
     process_count: int = 0
+    use_simulator: bool = False
 
     def __post_init__(self):
         config_reader = ConfigReader()
         orchestrator_settings:OrchestratorConfig = config_reader.section('orchestrator', OrchestratorConfig)
+        environment:str = config_reader.section('environment', str)
+
+        if (orchestrator_settings.use_simulator and environment.lower().__contains__('prod') or environment.lower().__contains__('live')):
+            raise Exception('Unable to publish outbox messages as the using the simulator in live or production is not allowed. Please review the configuration.')
+        else:
+            self.use_simulator = orchestrator_settings.use_simulator
 
         self.max_parallel = orchestrator_settings.outbox.concurrency if orchestrator_settings.outbox.concurrency != None else 10
         self.batch_size = orchestrator_settings.outbox.batch_size if orchestrator_settings.outbox.batch_size != None else 50
@@ -147,8 +154,13 @@ class OutboxBackgroundService:
                     de_duplication_enabled=message.de_duplication_enabled,
                     de_duplication_delay_in_seconds=message.de_duplication_delay_in_seconds,
                     unique_header_hash=message.unique_header_hash)
-                
-            await api_caller.submit(envelope)
+            
+
+            if (self.use_simulator):
+                await asyncio.sleep(0.02) # Simulate wait time
+                logger.success(f'Simulated message publishing from outbox. Name: [{envelope.message_name}] Reference: [{envelope.reference}]')
+            else:
+                await api_caller.submit(envelope)            
 
             message.process_count += 1
             self.batch_concurrent_error_count = 0

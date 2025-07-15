@@ -17,3 +17,4 @@ class OrchestratorConfig():
     base_url:str = None
     outbox:Outbox = None
     default_callback_webhook:Webhook = None
+    use_simulator:bool = False
