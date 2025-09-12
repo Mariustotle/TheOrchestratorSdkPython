@@ -52,7 +52,7 @@ class MessageOutboxEntity(MessageEntityBase):
             processing_context.source_priority if processing_context.source_priority != None else default_prio)
         
         return MessageOutboxEntity(
-            publish_request_object = publish_request_object.json() if publish_request_object is not None else None,
+            publish_request_object = publish_request_object.model_dump_json() if publish_request_object is not None else None,
             status = str(OutboxStatus.Pending.name),
             message_name = message_name,
             handler_name = handler_name,
