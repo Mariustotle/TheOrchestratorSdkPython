@@ -4,12 +4,15 @@ from orchestrator_sdk.seedworks.logger import Logger
 
 logger = Logger.get_instance()
 
+def _default_serialiser(o): #this serialiser is for 'Object of type UUID is not JSON seralisable' exceptions, and general consistent serialisation.
+    return str(o)
+
 class JsonWorker:
 
     def read_as_json(self, raw_payload):
         try:
             if isinstance(raw_payload, (dict, list)):
-                return raw_payload
+                return json.loads(json.dumps(raw_payload, default=_default_serialiser))
 
             if raw_payload is None:
                 raise ValueError("Empty JSON payload (None), cannot convert.")
@@ -22,10 +25,10 @@ class JsonWorker:
 
             # NEW: handle dataclass or any object with __dict__
             if dataclasses.is_dataclass(raw_payload):
-                return dataclasses.asdict(raw_payload)
+                return json.loads(json.dumps(dataclasses.asdict(raw_payload), default=_default_serialiser))
 
             if hasattr(raw_payload, "__dict__"):
-                return raw_payload.__dict__
+                return json.loads(json.dumps(raw_payload.__dict__, default=_default_serialiser))
 
             # Optionally still handle raw *classes* (rarely useful)
             if inspect.isclass(raw_payload):

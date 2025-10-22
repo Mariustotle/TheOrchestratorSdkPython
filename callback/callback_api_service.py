@@ -68,9 +68,9 @@ async def callback(
     try:        
         response = None
 
-        if (not availability_sim.is_available()):
-            logger.error(f'Simulated unavailability for [{availability_sim.offline_duration}] minutes until [{availability_sim._available_after}]')
-            availability_sim.simulate_unavailable()
+        # if (not availability_sim.is_available()):
+        #     logger.error(f'Simulated unavailability for [{availability_sim.offline_duration}] minutes until [{availability_sim._available_after}]')
+        #     availability_sim.simulate_unavailable()
 
         with unit_of_work as uow:      # async with unit_of_work as uow:   
 

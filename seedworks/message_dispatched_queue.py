@@ -22,7 +22,7 @@ class MessageDispatchedQueue:
         with self._lock:
             if id in self._odict:
 
-                logger.warning('ID "%s" already in recent queue – duplicate ignored.', id)
+                logger.warning(f'ID "{id}" already in recent queue – duplicate ignored.')
                 return False
 
             self._odict[id] = None 
