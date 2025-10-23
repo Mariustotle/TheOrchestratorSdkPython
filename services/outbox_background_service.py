@@ -224,10 +224,10 @@ class OutboxBackgroundService:
                     backlog.remove(message)
 
         if expired_items_in_progress_count > 0:
-            logger.warning(f'Found expired items in the in-progress queue. Removed [{len(expired_items_in_progress_count)}] items from being in-progress. This should not happen so if you see this please investigate.')
+            logger.warning(f'Found expired items in the in-progress queue. Removed [{expired_items_in_progress_count}] items from being in-progress. This should not happen so if you see this please investigate.')
 
         if fetched_message_in_progress_count > 0:
-            logger.info(f'Cleaned retrieved messages based on idempotence check: [{len(fetched_message_in_progress_count)}] items removed before attempting to process.')
+            logger.info(f'Cleaned retrieved messages based on idempotence check: [{fetched_message_in_progress_count}] items removed before attempting to process.')
 
 
     async def run(self, stop_event: asyncio.Event, message_database:MessageDatabase) -> None:        
