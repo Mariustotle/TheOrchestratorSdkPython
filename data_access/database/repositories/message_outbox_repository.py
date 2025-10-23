@@ -173,19 +173,21 @@ class MessageOutboxRepository(RepositoryBase):
     async def delete_old_message_history(self, session:Session):        
         session.query(MessageOutboxEntity).filter(MessageOutboxEntity.is_completed == True).delete()
 
+
     async def get_outbox_summary_async(self) -> OutboxSummary:
         now = datetime.utcnow()
 
+        # Aggregate by message_name
         rows = (
             self.session
-                .query(MessageOutboxEntity.message_name,
-                    func.count().label("cnt"))
+                .query(MessageOutboxEntity.message_name, func.count().label("cnt"))
                 .filter(MessageOutboxEntity.is_completed == False)
                 .group_by(MessageOutboxEntity.message_name)
                 .all()
         )
         remaining_messages = {name: cnt for name, cnt in rows}
 
+        # Count messages ready for submission
         ready_for_submission = (
             self.session
                 .query(func.count())
@@ -202,22 +204,35 @@ class MessageOutboxRepository(RepositoryBase):
                         ),
                     )
                 )
-                .scalar() 
-        )
-
-        detached_messages = (
-            self.session
-                .query(func.count())
-                .filter(MessageOutboxEntity.status ==
-                        OutboxStatus.Preparation.name)
                 .scalar()
         )
 
-        return OutboxSummary.Create(
-            pending_messages                    = remaining_messages,
-            total_items_ready_for_submission    = ready_for_submission,
-            detached_messages                   = detached_messages,
-            total_items_pending_submission      = sum(remaining_messages.values())
+        # Count detached/preparation messages
+        detached_messages = (
+            self.session
+                .query(func.count())
+                .filter(MessageOutboxEntity.status == OutboxStatus.Preparation.name)
+                .scalar()
         )
 
+        # Compute oldest and latest created_date
+        oldest_latest = (
+            self.session
+                .query(
+                    func.min(MessageOutboxEntity.created_date),
+                    func.max(MessageOutboxEntity.created_date)
+                )
+                .filter(MessageOutboxEntity.is_completed == False)
+                .one()
+        )
 
+        oldest_item, latest_item = oldest_latest
+
+        return OutboxSummary.Create(
+            pending_messages=remaining_messages,
+            total_items_ready_for_submission=ready_for_submission,
+            detached_messages=detached_messages,
+            total_items_pending_submission=sum(remaining_messages.values()),
+            oldest_item=oldest_item,
+            latest_item=latest_item
+        )
