@@ -1,5 +1,6 @@
 from collections import OrderedDict
 from threading import RLock
+from datetime import datetime
 
 from typing import List
 
@@ -14,7 +15,7 @@ class MessageDispatchedQueue:
             raise ValueError("capacity must be positive")
 
         self._capacity: int = capacity
-        self._odict: OrderedDict[int, None] = OrderedDict() 
+        self._odict: OrderedDict[int, datetime] = OrderedDict() 
         self._lock: RLock = RLock()
 
 
@@ -22,10 +23,10 @@ class MessageDispatchedQueue:
         with self._lock:
             if id in self._odict:
 
-                logger.warning(f'ID "{id}" already in recent queue – duplicate ignored.')
+                logger.info(f'ID "{id}" already in-progress. Ignoring the request.')
                 return False
 
-            self._odict[id] = None 
+            self._odict[id] = datetime.utcnow() 
 
             if len(self._odict) > self._capacity:
                 oldest, _ = self._odict.popitem(last=False)
@@ -41,6 +42,10 @@ class MessageDispatchedQueue:
     def contains(self, id: int) -> bool:
         with self._lock:
             return id in self._odict
+        
+    def get(self, id: int) -> datetime:
+        with self._lock:
+            return self._odict.get(id)
 
     def snapshot(self) -> List[int]:
         with self._lock:

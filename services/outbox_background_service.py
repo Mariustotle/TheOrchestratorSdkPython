@@ -8,7 +8,7 @@ from orchestrator_sdk.callback.processing_context import ProcessingContext
 from orchestrator_sdk.data_access.message_broker.methods.api_submission import ApiSubmission
 from orchestrator_sdk.seedworks.message_dispatched_queue import MessageDispatchedQueue
 
-from typing import Optional, List
+from typing import Any, Optional, List
 from datetime import datetime, timedelta
 
 from orchestrator_sdk.data_access.database.repositories.message_outbox_repository import MessageOutboxRepository, ReadyForSubmissionBatch
@@ -104,8 +104,7 @@ class OutboxBackgroundService:
         
         return backoff_date
     
-    def update_message_process_fields(self, priority:Optional[int], items_at_source:Optional[int], content:str) -> str:
-        
+    def update_message_process_fields(self, priority:Optional[int], items_at_source:Optional[int], content:str) -> str:        
         if content == None:
             return content
         
@@ -132,6 +131,8 @@ class OutboxBackgroundService:
         self.successfull_submission = True
 
     async def publish_one(self, message:MessageOutboxEntity, api_caller:ApiSubmission, content:str):
+        success = False
+
         try:
             
             items_at_source:Optional[int] = None
@@ -171,6 +172,7 @@ class OutboxBackgroundService:
             
             message.status = OutboxStatus.Published.name
             message.is_completed = True
+            success = True
             message.published_date = datetime.utcnow()
                         
             self.update_message_counter_on_success(message_name=message.message_name)        
@@ -180,7 +182,6 @@ class OutboxBackgroundService:
             logger.debug(f'MESSAGE DB POOL STATUS: [{self.message_database.db_engine.pool.status()}]')
             # Do not incriment or apply exponential backoff if a connection could not be established
 
-            self.dispatched_queue.try_remove(message.id)
             return False
             
         except Exception as ex:
@@ -197,11 +198,36 @@ class OutboxBackgroundService:
             if (self.batch_concurrent_error_count > 5 and self.stop_concurrent_submission == False):                
                 self.stop_concurrent_submission = True      # Stop concurrent submission 
                 self.semaphore.set_new_limit(1)
-
-            self.dispatched_queue.try_remove(message.id)
                 
         finally:
+            if not success:
+                self.dispatched_queue.try_remove(message.id)
+                
             self.semaphore.release()
+
+    def in_progress_cleanup(self, backlog: List[MessageOutboxEntity]):
+        expired_items_in_progress_count:int = 0
+        fetched_message_in_progress_count:int = 0
+
+        for message in backlog[:]:
+            found_date = self.dispatched_queue.get(message.id)
+
+            if found_date:
+                age:timedelta = datetime.utcnow() - found_date
+
+                if (age.seconds > 300):
+                    expired_items_in_progress_count += 1
+                    self.dispatched_queue.try_remove(message.id)
+
+                else:
+                    fetched_message_in_progress_count += 1
+                    backlog.remove(message)
+
+        if expired_items_in_progress_count > 0:
+            logger.warning(f'Found expired items in the in-progress queue. Removed [{len(expired_items_in_progress_count)}] items from being in-progress. This should not happen so if you see this please investigate.')
+
+        if fetched_message_in_progress_count > 0:
+            logger.info(f'Cleaned retrieved messages based on idempotence check: [{len(fetched_message_in_progress_count)}] items removed before attempting to process.')
 
 
     async def run(self, stop_event: asyncio.Event, message_database:MessageDatabase) -> None:        
@@ -259,12 +285,14 @@ class OutboxBackgroundService:
                         backlog = []
 
                         messageByType:ReadyForSubmissionBatch = await asyncio.wait_for(outbox_repo.get_next_messages(batch_size=self.batch_size, message_name=key), timeout=60)
+                        self.in_progress_cleanup(messageByType.messages)
                         backlog.extend(messageByType.messages)                           
 
                         if (len(backlog) < self.batch_size):
                             remaining_count = self.batch_size - len(backlog)
 
                             fillerMessages:ReadyForSubmissionBatch = await asyncio.wait_for(outbox_repo.get_next_messages(batch_size=remaining_count), timeout=60)
+                            self.in_progress_cleanup(fillerMessages.messages)
                             backlog.extend(fillerMessages.messages) 
 
                         if (len(backlog) <= 0):
