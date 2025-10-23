@@ -17,7 +17,7 @@ class ApiSubmission:
         elif (isinstance(publish_request, str)):
             converted = publish_request
         else:
-           converted = json.dumps(json.loads(publish_request.publish_request.json()))
+           converted = json.dumps(json.loads(publish_request.publish_request.model_dump_json()))
         
         return converted
         

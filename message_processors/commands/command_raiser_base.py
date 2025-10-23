@@ -55,7 +55,7 @@ class CommandRaiserBase(ABC, Generic[T]):
         return None
    
     def build_request(self, request_object:T, processing_context:ProcessingContext, reference:Optional[str] = None, priority:Optional[int] = None) -> RaiseCommandRequest:        
-        serialized_payload = request_object.json()
+        serialized_payload = request_object.model_dump_json()
         
         unique_header_string = self.build_unique_header(request_object) 
         unique_header_hash = CommandRaiserBase.hash_and_convert_to_string(unique_header_string)    
