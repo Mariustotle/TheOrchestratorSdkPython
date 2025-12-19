@@ -37,7 +37,6 @@ class RaiseCommandRequest(BaseModel):
             Content = content,
             ItemsRemainingAtSource = items_at_source,
             Priority = priority,
-            SourceTraceMessageId = processing_context.source_message_trace_id,
             GroupTraceKey = processing_context.group_trace_key,
             SourceMapMessageId = processing_context.source_map_message_id,
             UniqueRequestHeaderHash = unique_request_header_hash            

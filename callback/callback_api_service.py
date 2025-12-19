@@ -32,7 +32,6 @@ async def get_callback_context(request: Request) -> HeaderProperties:
     application_name = request.headers.get("ApplicationName")
     reference = request.query_params.get("Reference")
     message_id = request.query_params.get("SourceMessageId")
-    trace_message_id = request.query_params.get("TraceMessageId")
     message_name = request.query_params.get("MessageName")
     message_type = request.query_params.get("MessageType")
     process_structure = request.query_params.get("ProcessStructure")
@@ -45,7 +44,6 @@ async def get_callback_context(request: Request) -> HeaderProperties:
     return HeaderProperties(
         account_id=account_id,
         message_id=message_id,
-        trace_message_id=trace_message_id,
         group_trace_key=group_trace_key,
         dispatcher=dispatcher,
         message_name=message_name,

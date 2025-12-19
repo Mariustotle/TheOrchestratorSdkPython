@@ -15,7 +15,7 @@ class MessageOutboxSchema(BaseModel):
     status: OutboxStatus
     is_completed: bool
     handler: str
-    source_trace_message_id: Optional[str] = None
+    source_trace_message_id: Optional[str] # Depricatedm left to not break db schema
     process_count: int
     eligible_after: Optional[datetime]
 

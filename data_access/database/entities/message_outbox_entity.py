@@ -56,7 +56,7 @@ class MessageOutboxEntity(MessageEntityBase):
             status = str(OutboxStatus.Pending.name),
             message_name = message_name,
             handler_name = handler_name,
-            source_trace_message_id = processing_context.source_message_trace_id,
+            source_trace_message_id = None, # Depricated left to not break current db instances
             source_map_message_id = processing_context.source_map_message_id,
             group_trace_key = processing_context.group_trace_key,
             process_count = 0,

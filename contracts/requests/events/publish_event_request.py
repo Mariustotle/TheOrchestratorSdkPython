@@ -39,7 +39,6 @@ class PublishEventRequest(BaseModel):
             ItemsRemainingAtSource = items_at_source,
             GroupTraceKey = processing_context.group_trace_key,
             SourceMapMessageId = processing_context.source_map_message_id,
-            SourceTraceMessageId = processing_context.source_message_trace_id,
             Priority = priority,
             UniqueRequestHeaderHash = unique_request_header_hash
         )
