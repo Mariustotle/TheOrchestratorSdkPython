@@ -1,42 +1,70 @@
 from orchestrator_sdk.contracts.publishing.publish_envelope import PublishEnvelope
-from requests import Response
 from orchestrator_sdk.seedworks.logger import Logger
+
+import json
+import httpx
+from typing import Any, Optional
 
 logger = Logger.get_instance()
 
-import requests
-import json
 
 class ApiSubmission:
-    
-    def get_json_data(self, publish_request:object):
-        converted = None        
-        
-        if (isinstance(publish_request, dict)):
-            converted = publish_request 
-        elif (isinstance(publish_request, str)):
-            converted = publish_request
+    def __init__(self, verify_ssl: bool = False, timeout_seconds: float = 30.0):
+        self._client = httpx.AsyncClient(
+            verify=verify_ssl,
+            timeout=timeout_seconds,
+            headers={"Content-Type": "application/json"},
+            limits=httpx.Limits(
+                max_keepalive_connections=100,
+                max_connections=200
+            ),
+        )
+        self._disposed = False
+
+    def get_json_data(self, publish_request: Any):
+        if isinstance(publish_request, dict):
+            return publish_request
+        elif isinstance(publish_request, str):
+            # if string already JSON, return parsed object when possible
+            try:
+                return json.loads(publish_request)
+            except Exception:
+                return publish_request
         else:
-           converted = json.dumps(json.loads(publish_request.publish_request.model_dump_json()))
-        
-        return converted
-        
-    
-    async def submit(self, publish_request:PublishEnvelope):
-        
+            return json.loads(publish_request.model_dump_json())
+
+    async def submit(self, publish_request: PublishEnvelope):
         try:
-            
             json_data = self.get_json_data(publish_request.publish_request)
-            
-            headers = {'Content-Type': 'application/json'}      
-            
-            http_response:Response = requests.post(publish_request.endpoint, data=json_data, headers=headers, verify=False)           
-            
-            if not http_response.ok:
-                raise Exception(f"Failed to post on behalf of [{publish_request.handler_name}] to [{publish_request.endpoint}] with ErrorCode [{http_response.status_code}]. Error Details >> {http_response.content}")
-            
-            logger.trace(f'Successfully posted on behalf of [{publish_request.handler_name}] to the orchestrator - reference [{publish_request.reference}]')
+
+            http_response = await self._client.post(
+                publish_request.endpoint,
+                json=json_data
+            )
+
+            if not http_response.is_success:
+                raise Exception(
+                    f"Failed to post on behalf of [{publish_request.handler_name}] "
+                    f"to [{publish_request.endpoint}] with ErrorCode "
+                    f"[{http_response.status_code}]. Error Details >> {http_response.text}"
+                )
+
+            logger.trace(
+                f"Successfully posted on behalf of [{publish_request.handler_name}] "
+                f"to the orchestrator - reference [{publish_request.reference}]"
+            )
 
         except Exception as ex:
-            logger.error(ex)            
+            logger.error(ex)
             raise
+
+    async def dispose(self):
+        if not self._disposed:
+            await self._client.aclose()
+            self._disposed = True
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, exc_type, exc, tb):
+        await self.dispose()

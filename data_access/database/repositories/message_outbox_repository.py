@@ -1,3 +1,5 @@
+from dataclasses import dataclass
+
 from orchestrator_sdk.data_access.database.entities.message_outbox_entity import MessageOutboxEntity
 from orchestrator_sdk.contracts.local_persistence.message_outbox_schema import MessageOutboxSchema
 from orchestrator_sdk.data_access.database.outbox_status import OutboxStatus
@@ -9,6 +11,11 @@ from sqlalchemy.orm import Session
 from uuid import uuid4
 from typing import List, Dict, Optional
 from datetime import datetime, timedelta, timezone
+
+@dataclass
+class PendingMessageStats:
+    remaining_count: int
+    oldest_created_date: datetime
 
 class ReadyForSubmissionBatch():
     messages_ready:int
@@ -48,19 +55,26 @@ class MessageOutboxRepository(RepositoryBase):
         return converted
     
     def get_pending_message_counts(self) -> dict:
-        
         remaining_messages = (
             self.session.query(
                 MessageOutboxEntity.message_name,
-                func.count(MessageOutboxEntity.id).label('remaining_count')
+                func.count(MessageOutboxEntity.id).label('remaining_count'),
+                func.min(MessageOutboxEntity.created_date).label('oldest_created_date')
             )
-            .filter(MessageOutboxEntity.is_completed == False) 
+            .filter(MessageOutboxEntity.is_completed == False)
             .group_by(MessageOutboxEntity.message_name)
-            .all())
-        
-        remaining_message_dict = {name: count for name, count in remaining_messages}        
-        return remaining_message_dict     
-        
+            .all()
+        )
+
+        remaining_message_dict = {
+            name: PendingMessageStats(
+                remaining_count=count,
+                oldest_created_date=oldest_created_date
+            )
+            for name, count, oldest_created_date in remaining_messages
+        }
+
+        return remaining_message_dict
     
     def prepare_outbox_message_for_transaction(self):
         # Find all pending messages for the given transaction_id

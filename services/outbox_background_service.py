@@ -1,12 +1,15 @@
 import asyncio
+from email.mime import message
 import json
 
 from dataclasses import dataclass
 from pydantic import Field
+from uuid import UUID, uuid4
 
 from orchestrator_sdk.callback.processing_context import ProcessingContext
+from orchestrator_sdk.contracts.requests.batch_context import BatchContext
 from orchestrator_sdk.data_access.message_broker.methods.api_submission import ApiSubmission
-from orchestrator_sdk.seedworks.message_dispatched_queue import MessageDispatchedQueue
+from orchestrator_sdk.seedworks.in_flight_set import InFlightSet
 
 from typing import Any, Optional, List
 from datetime import datetime, timedelta
@@ -15,6 +18,7 @@ from orchestrator_sdk.data_access.database.repositories.message_outbox_repositor
 from orchestrator_sdk.data_access.database.message_database import MessageDatabase
 from orchestrator_sdk.data_access.database.entities.message_outbox_entity import MessageOutboxEntity
 from orchestrator_sdk.contracts.publishing.publish_envelope import PublishEnvelope
+from orchestrator_sdk.seedworks.recent_success_ttl_set import RecentSuccessTtlSet
 from orchestrator_sdk.seedworks.timer import Timer, TimerStats
 from orchestrator_sdk.contracts.orchestrator_config import OrchestratorConfig
 from orchestrator_sdk.seedworks.config_reader import ConfigReader
@@ -38,12 +42,15 @@ class OutboxBackgroundService:
     item_delay: float = None
     long_batch_delay: float = None
     batch_delay: float = None
-    successfull_submission: bool = False
-    dispatched_queue:MessageDispatchedQueue = None
+    successful_submission: bool = False
+    recent_successes:RecentSuccessTtlSet = None
+    in_flight:InFlightSet = None
 
     pooling_utility:PoolingUtility = None
     message_database:MessageDatabase = None 
     pending_message_counts:dict = None
+    batch_message_counts:dict = None
+
     min_cleanup_interval_in_hours:int = 2
 
     batch_size: int = None         # Number of messages in one batch read
@@ -61,7 +68,8 @@ class OutboxBackgroundService:
         orchestrator_settings:OrchestratorConfig = config_reader.section('orchestrator', OrchestratorConfig)
         environment:str = config_reader.section('environment', str)
 
-        if (orchestrator_settings.use_simulator and environment.lower().__contains__('prod') or environment.lower().__contains__('live')):
+        env = environment.lower()
+        if orchestrator_settings.use_simulator and ('prod' in env or 'live' in env):
             raise Exception('Unable to publish outbox messages as the using the simulator in live or production is not allowed. Please review the configuration.')
         else:
             self.use_simulator = orchestrator_settings.use_simulator
@@ -74,29 +82,32 @@ class OutboxBackgroundService:
 
         # Create a real semaphore instance
         self.semaphore = DynamicSemaphore(self.max_parallel)
-        self.dispatched_queue = MessageDispatchedQueue(capacity=200)
+        self.recent_successes = RecentSuccessTtlSet(capacity=1000, ttl=timedelta(minutes=5)) 
 
     async def update_remaining_message_counters(self, repo:MessageOutboxRepository):
         pending_counters = repo.get_pending_message_counts()        
         self.pending_message_counts = pending_counters
 
     async def cleanup(self, outbox_repo: MessageOutboxRepository):  
-        try:
-            
+        isolated_session = None
+
+        try:            
             await self.pooling_utility.throttle_database_connections()
             
-            isolated_session = self.message_database.db_session_maker()            
+            isolated_session = self.message_database.db_session_maker()       
             await outbox_repo.delete_old_message_history(isolated_session)
             
             isolated_session.commit()
             self.message_database.last_cleanup_timestamp = datetime.utcnow()
 
         except Exception as ex:
-            isolated_session.rollback()
             logger.error(f'Failed to perform outbox local db cleanup. Details: {ex}')
+            if isolated_session is not None:
+                isolated_session.rollback()
         
         finally:            
-            isolated_session.close()
+            if isolated_session is not None:
+                isolated_session.close()
 
     def calculate_exponential_backoff(self, process_count:int) -> datetime:        
         delay_minutes = 2 ** (process_count * 1)
@@ -104,42 +115,60 @@ class OutboxBackgroundService:
         
         return backoff_date
     
-    def update_message_process_fields(self, priority:Optional[int], items_at_source:Optional[int], content:str) -> str:        
-        if content == None:
+    def update_message_process_fields(self, priority:Optional[int], content:str, request_date:Optional[datetime], 
+        outbox_reference_id:Optional[UUID], submission_batch: Optional[BatchContext] = None) -> str:        
+        if content is None:
             return content
         
         data = json.loads(content)
         
+        submission_batch_key = 'SubmissionBatch'
         priority_key = 'Priority'
-        items_at_source_key = 'ItemsRemainingAtSource'
+        request_date_key = 'RequestDate'
+        outbox_reference_id_key = 'OutboxReferenceId'
         
-        if (data != None and priority_key in data):
+        if (data is not None and priority_key in data):
             data[priority_key] = priority
-            
-        if (data != None and items_at_source_key in data):
-            data[items_at_source_key] = items_at_source
-            
+
+        if (data is not None and request_date_key in data):
+            data[request_date_key] = request_date.isoformat() if request_date else None
+
+        if (data is not None and outbox_reference_id_key in data):
+            data[outbox_reference_id_key] = str(outbox_reference_id) if outbox_reference_id else None
+
+        if submission_batch is not None:
+            data[submission_batch_key] = submission_batch.model_dump(mode="json")
+
         converted_string = json.dumps(data)        
         return converted_string
     
-    def update_message_counter_on_success(self, message_name):
+    def update_message_counter_on_success(self, message_id:int, message_name:str):
+       
+        if (self.batch_message_counts is not None and message_name in self.batch_message_counts):
+            counter = self.batch_message_counts[message_name]
+            self.batch_message_counts[message_name] = counter - 1
         
-        if (self.pending_message_counts != None and message_name in self.pending_message_counts):
-            counter = self.pending_message_counts[message_name]
-            self.pending_message_counts[message_name] = counter - 1
-        
-        self.successfull_submission = True
+        self.successful_submission = True
+        self.recent_successes.try_add(message_id)
 
-    async def publish_one(self, message:MessageOutboxEntity, api_caller:ApiSubmission, content:str):
+
+    async def publish_one(self, message:MessageOutboxEntity, api_caller:ApiSubmission, content:str, message_batch_id: UUID, 
+            total_items_in_batch: int, position_in_batch: int, total_remaining_excluding_batch: int, oldest_remaining_item: Optional[datetime] = None):
+        
         success = False
 
-        try:
+        try:           
             
-            items_at_source:Optional[int] = None
-            if (self.pending_message_counts != None and message.message_name in self.pending_message_counts):
-                items_at_source = self.pending_message_counts[message.message_name] - 1           
-            
-            payload = self.update_message_process_fields(message.priority, items_at_source, content)
+            # Need to update the batch stats
+            batch_context = BatchContext.Create(
+                total_items_in_batch=total_items_in_batch,
+                position_in_batch=position_in_batch,
+                total_remaining_excluding_batch=total_remaining_excluding_batch,
+                batch_id=message_batch_id,
+                oldest_remaining_item=oldest_remaining_item
+            )
+
+            payload = self.update_message_process_fields(message.priority, content, message.created_date, message.id, submission_batch=batch_context)
             
             process_context = ProcessingContext.Create(
                 source_map_message_id=message.source_map_message_id, source_priority=None,
@@ -174,7 +203,7 @@ class OutboxBackgroundService:
             success = True
             message.published_date = datetime.utcnow()
                         
-            self.update_message_counter_on_success(message_name=message.message_name)        
+            self.update_message_counter_on_success(message_id=message.id, message_name=message.message_name)        
 
         except RequestsConnectionError:
             logger.warning(f'Unable to connect to orchestrator server to publish the messages waiting to be sent. Will delay retry.')
@@ -200,33 +229,9 @@ class OutboxBackgroundService:
                 
         finally:
             if not success:
-                self.dispatched_queue.try_remove(message.id)
+                self.in_flight.try_remove(message.id)
                 
             self.semaphore.release()
-
-    def in_progress_cleanup(self, backlog: List[MessageOutboxEntity]):
-        expired_items_in_progress_count:int = 0
-        fetched_message_in_progress_count:int = 0
-
-        for message in backlog[:]:
-            found_date = self.dispatched_queue.get(message.id)
-
-            if found_date:
-                age:timedelta = datetime.utcnow() - found_date
-
-                if (age.seconds > 300):
-                    expired_items_in_progress_count += 1
-                    self.dispatched_queue.try_remove(message.id)
-
-                else:
-                    fetched_message_in_progress_count += 1
-                    backlog.remove(message)
-
-        if expired_items_in_progress_count > 0:
-            logger.warning(f'Found expired items in the in-progress queue. Removed [{expired_items_in_progress_count}] items from being in-progress. This should not happen so if you see this please investigate.')
-
-        if fetched_message_in_progress_count > 0:
-            logger.info(f'Cleaned retrieved messages based on idempotence check: [{fetched_message_in_progress_count}] items removed before attempting to process.')
 
 
     async def run(self, stop_event: asyncio.Event, message_database:MessageDatabase) -> None:        
@@ -237,13 +242,15 @@ class OutboxBackgroundService:
         while not stop_event.is_set():
             session = None
             long_wait = False
+            self.in_flight = InFlightSet(capacity=20000, ttl=timedelta(minutes=5))
 
             try:
                 self.batch_error_count = 0
                 self.batch_concurrent_error_count = 0
                 self.process_count = 0
-                self.successfull_submission = False
+                self.successful_submission = False
                 last_submission_count = 0
+                
                 
                 api_caller:ApiSubmission = None
                 counter += 1
@@ -253,10 +260,10 @@ class OutboxBackgroundService:
                 with Timer(f"Submit messages in outbox [{counter}]", perf_stats):
 
                     with Timer("Initialization"):
-                        if (session == None):
+                        if (session is None):
                             session = self.message_database.db_session_maker()
                         
-                        if (api_caller == None):
+                        if (api_caller is None):
                             api_caller = ApiSubmission()                 
 
                         outbox_repo = MessageOutboxRepository(session, None)
@@ -278,40 +285,88 @@ class OutboxBackgroundService:
                     with Timer("Database connection throttling"):
                         await self.pooling_utility.throttle_database_connections()                    
 
-                    pendingCounts = outbox_repo.get_pending_message_counts()
+                    if len(self.pending_message_counts) > 0:                        
+                        
+                        self.batch_message_counts = {}
 
-                    for key, value in pendingCounts.items():
-                        backlog = []
+                        for key, value in self.pending_message_counts.items():
+                            batch_backlog = []
 
-                        messageByType:ReadyForSubmissionBatch = await asyncio.wait_for(outbox_repo.get_next_messages(batch_size=self.batch_size, message_name=key), timeout=60)
-                        self.in_progress_cleanup(messageByType.messages)
-                        backlog.extend(messageByType.messages)                           
+                            messageByType:ReadyForSubmissionBatch = await asyncio.wait_for(outbox_repo.get_next_messages(batch_size=self.batch_size, message_name=key), timeout=60)
+                            batch_backlog.extend(messageByType.messages)                                         
 
-                        if (len(backlog) < self.batch_size):
-                            remaining_count = self.batch_size - len(backlog)
+                            if (len(batch_backlog) < self.batch_size):
+                                remaining_count = self.batch_size - len(batch_backlog)
 
-                            fillerMessages:ReadyForSubmissionBatch = await asyncio.wait_for(outbox_repo.get_next_messages(batch_size=remaining_count), timeout=60)
-                            self.in_progress_cleanup(fillerMessages.messages)
-                            backlog.extend(fillerMessages.messages) 
+                                fillerMessages:ReadyForSubmissionBatch = await asyncio.wait_for(outbox_repo.get_next_messages(batch_size=remaining_count), timeout=60)
+                                batch_backlog.extend(fillerMessages.messages)
 
-                        if (len(backlog) <= 0):
-                            break
+                            backlog = []
+                            seen_ids = set()
 
-                        with Timer(f"Submit messages to Orchestrator [{len(backlog)}]"):                                            
-                            # Launch publishing tasks with bounded concurrency.
-                            for message in backlog:  
-                                await asyncio.sleep(self.item_delay)
-                                if (self.dispatched_queue.try_add(message.id) == False):
-                                    logger.warning(f'Unable to dispatch message [{message.id}] as it is already in the dispatched queue.')
-                                    continue
+                            # De-Duplicate Batch Backlog
+                            for m in batch_backlog:
+                                if m.id not in seen_ids:
+                                    seen_ids.add(m.id)
+                                    backlog.append(m)
 
-                                await self.semaphore.acquire()
-                                last_submission_count += 1
+                            if (len(backlog) <= 0):
+                                break
 
-                                asyncio.create_task(self.publish_one(message, api_caller, message.publish_request_object))
+                            backlog.sort(key=lambda m: (m.message_name, m.created_date))
 
-                                current_count = submitted_messages.get(message.message_name, 0)
-                                submitted_messages[message.message_name] = current_count + 1                               
+                            batch_id = None
+                            items_in_batch = None
+                            items_remaining_outside_batch = None
+                            message_position_in_batch = 0
+                            current_message = None
+                            oldest_remaining_item = None
+
+                            with Timer(f"Submit messages to Orchestrator [{len(backlog)}]"):                                            
+                                # Launch publishing tasks with bounded concurrency.
+                                for message in backlog:  
+                                    await asyncio.sleep(self.item_delay)
+
+                                    if (self.in_flight.try_add(message.id) is False):
+                                        logger.warning(f'Unable to dispatch message [{message.id}] as it is already dispatched.')
+                                        continue
+
+                                    if (self.recent_successes.try_add(message.id) is False):
+                                        logger.warning(f'Unable to dispatch message [{message.id}] as has already been sent.')
+                                        continue
+
+                                    await self.semaphore.acquire()
+                                    last_submission_count += 1
+
+                                    if (message.message_name != current_message):
+                                        batch_id = uuid4()
+                                        current_message = message.message_name
+                                        items_in_batch = sum(1 for x in backlog if x.message_name == message.message_name)
+                                        self.batch_message_counts[message.message_name] = items_in_batch
+
+                                        all_pending_messages = self.pending_message_counts[message.message_name]
+                                        if (all_pending_messages is not None):                                        
+                                            items_remaining_outside_batch = max(0, all_pending_messages.remaining_count - items_in_batch)
+                                            oldest_remaining_item = all_pending_messages.oldest_created_date
+                                        else:
+                                            items_remaining_outside_batch = 0                                   
+
+                                        message_position_in_batch = 1
+                                    else:
+                                        message_position_in_batch += 1
+
+                                    asyncio.create_task(self.publish_one(
+                                        message=message,
+                                        api_caller=api_caller,
+                                        content=message.publish_request_object,
+                                        message_batch_id=batch_id,
+                                        total_items_in_batch=items_in_batch,
+                                        position_in_batch=message_position_in_batch,
+                                        total_remaining_excluding_batch=items_remaining_outside_batch,
+                                        oldest_remaining_item=oldest_remaining_item))
+
+                                    current_count = submitted_messages.get(message.message_name, 0)
+                                    submitted_messages[message.message_name] = current_count + 1                               
                             
                             try:
                                 await asyncio.wait_for(self.semaphore.wait_for_all_released(), timeout=10)
@@ -320,7 +375,7 @@ class OutboxBackgroundService:
                                 logger.warning(f'Could not wait for all instances to be released.')                
                                 self.semaphore = DynamicSemaphore(self.max_parallel)                        
 
-                    if (self.successfull_submission == True):
+                    if (self.successful_submission):
                         long_wait = False                        
                     else:
                         long_wait = True                        
@@ -334,7 +389,11 @@ class OutboxBackgroundService:
             
             finally:
                 if session is not None:
-                    session.close()  
+                    session.close()
+
+                if (self.in_flight is not None):                
+                    self.in_flight.clear()
+                    self.in_flight.dispose()
 
             with Timer(f"Batch wait time before next"):
                 if (long_wait):

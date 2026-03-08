@@ -167,7 +167,7 @@ class SyncService():
                 
                 items_at_source = None
                 if (pending_message_counts != None and handler.event_name in pending_message_counts):
-                    items_at_source = pending_message_counts[handler.event_name]
+                    items_at_source = pending_message_counts[handler.event_name].remaining_count
                 
                 publisher = EventPublisherRegistration.Create(
                     event_name = handler.event_name, 
@@ -248,7 +248,7 @@ class SyncService():
                 
                 items_at_source = None
                 if (pending_message_counts != None and handler.command_name in pending_message_counts):
-                    items_at_source = pending_message_counts[handler.command_name]
+                    items_at_source = pending_message_counts[handler.command_name].remaining_count
                     
                 subscription = CommandRaiserRegistration.Create(
                     command_name = handler.command_name,

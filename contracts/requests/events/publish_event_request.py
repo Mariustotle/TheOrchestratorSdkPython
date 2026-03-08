@@ -1,8 +1,10 @@
+from datetime import datetime
 from typing import Optional
 from pydantic import BaseModel
 
 from uuid import UUID
 from orchestrator_sdk.callback.processing_context import ProcessingContext
+from orchestrator_sdk.contracts.requests.batch_context import BatchContext
 
 class PublishEventRequest(BaseModel):    
     
@@ -14,21 +16,23 @@ class PublishEventRequest(BaseModel):
     Priority:Optional[int] = None
     UniqueRequestHeaderHash: Optional[str] = None
     GroupTraceKey: Optional[UUID] = None
-    SourceTraceMessageId: Optional[UUID] = None
     SourceMapMessageId: Optional[UUID] = None
-    ItemsRemainingAtSource: Optional[int] = None
+    OutboxReferenceId: Optional[str] = None
+    RequestDate:Optional[datetime] = None
+    SubmissionBatch: Optional[BatchContext] = None
+
     
     @staticmethod
     def Create (
             processing_context:ProcessingContext,
             application_name:str,
             event_name:str,
-            items_at_source:Optional[int] = None,
             priority:Optional[int] = None,
             content:Optional[str] = None,
             event_reference:Optional[str] = None,
             event_version:Optional[str] = None,
-            unique_request_header_hash:Optional[str] = None):     
+            unique_request_header_hash:Optional[str] = None       
+            ):     
         
         return PublishEventRequest(
             ApplicationName = application_name,
@@ -36,7 +40,6 @@ class PublishEventRequest(BaseModel):
             EventVersion = event_version,
             EventReference = event_reference,
             Content = content,
-            ItemsRemainingAtSource = items_at_source,
             GroupTraceKey = processing_context.group_trace_key,
             SourceMapMessageId = processing_context.source_map_message_id,
             Priority = priority,
