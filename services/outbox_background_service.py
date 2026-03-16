@@ -28,6 +28,7 @@ from orchestrator_sdk.data_access.database.outbox_status import OutboxStatus
 from orchestrator_sdk.data_access.database.tools.pooling_utility import PoolingUtility
 from requests.exceptions import ConnectionError as RequestsConnectionError
 
+from sqlalchemy.orm import Session
 from orchestrator_sdk.seedworks.logger import Logger
 
 logger = Logger.get_instance()
@@ -152,14 +153,32 @@ class OutboxBackgroundService:
         self.recent_successes.try_add(message_id)
 
 
-    async def publish_one(self, message:MessageOutboxEntity, api_caller:ApiSubmission, content:str, message_batch_id: UUID, 
-            total_items_in_batch: int, position_in_batch: int, total_remaining_excluding_batch: int, oldest_remaining_item: Optional[datetime] = None):
-        
+    async def publish_one(
+        self,
+        message_id: int,
+        message_name: str,
+        endpoint: str,
+        handler_name: str,
+        priority: int,
+        created_date: datetime,
+        transaction_reference: str,
+        group_trace_key: str,
+        source_map_message_id: str,
+        de_duplication_enabled: bool,
+        de_duplication_delay_in_seconds: int,
+        unique_header_hash: str,
+        content: str,
+        api_caller: ApiSubmission,
+        message_batch_id: UUID,
+        total_items_in_batch: int,
+        position_in_batch: int,
+        total_remaining_excluding_batch: int,
+        oldest_remaining_item: Optional[datetime] = None
+    ):
         success = False
+        local_session:Session = self.message_database.db_session_maker()
 
-        try:           
-            
-            # Need to update the batch stats
+        try:
             batch_context = BatchContext.Create(
                 total_items_in_batch=total_items_in_batch,
                 position_in_batch=position_in_batch,
@@ -168,79 +187,84 @@ class OutboxBackgroundService:
                 oldest_remaining_item=oldest_remaining_item
             )
 
-            payload = self.update_message_process_fields(message.priority, content, message.created_date, message.id, submission_batch=batch_context)
-            
+            payload = self.update_message_process_fields(
+                priority, content, created_date, message_id, submission_batch=batch_context
+            )
+
             process_context = ProcessingContext.Create(
-                source_map_message_id=message.source_map_message_id, source_priority=None,
-                message_name=message.message_name, reference=message.transaction_reference, group_trace_key=message.group_trace_key)
-                                        
+                source_map_message_id=source_map_message_id,
+                source_priority=None,
+                message_name=message_name,
+                reference=transaction_reference,
+                group_trace_key=group_trace_key
+            )
+
             envelope = PublishEnvelope.Create(
-                    endpoint=message.endpoint,
-                    processing_context=process_context,
-                    publish_request=payload,
-                    handler_name=message.handler_name,
-                    priority=message.priority, message_name=message.message_name,
-                    de_duplication_enabled=message.de_duplication_enabled,
-                    de_duplication_delay_in_seconds=message.de_duplication_delay_in_seconds,
-                    unique_header_hash=message.unique_header_hash)
-            
+                endpoint=endpoint,
+                processing_context=process_context,
+                publish_request=payload,
+                handler_name=handler_name,
+                priority=priority,
+                message_name=message_name,
+                de_duplication_enabled=de_duplication_enabled,
+                de_duplication_delay_in_seconds=de_duplication_delay_in_seconds,
+                unique_header_hash=unique_header_hash
+            )
 
-            if (self.use_simulator):
-                await asyncio.sleep(0.02) # Simulate wait time
-                logger.success(f'Simulated message publishing from outbox. Name: [{envelope.message_name}] Reference: [{envelope.reference}]')
+            if self.use_simulator:
+                await asyncio.sleep(0.02)
             else:
-                await api_caller.submit(envelope)            
+                await api_caller.submit(envelope)
 
-            message.process_count += 1
-            self.batch_concurrent_error_count = 0
+            db_message = local_session.query(MessageOutboxEntity).filter(
+                MessageOutboxEntity.id == message_id
+            ).first()
 
-            if (self.stop_concurrent_submission):
-                self.stop_concurrent_submission = False
-                self.semaphore.set_new_limit(self.max_parallel)
-            
-            message.status = OutboxStatus.Published.name
-            message.is_completed = True
+            if db_message is not None:
+                db_message.process_count += 1
+                db_message.status = OutboxStatus.Published.name
+                db_message.is_completed = True
+                db_message.published_date = datetime.utcnow()
+                local_session.commit()
+
+            self.update_message_counter_on_success(message_id=message_id, message_name=message_name)
             success = True
-            message.published_date = datetime.utcnow()
-                        
-            self.update_message_counter_on_success(message_id=message.id, message_name=message.message_name)        
 
-        except RequestsConnectionError:
-            logger.warning(f'Unable to connect to orchestrator server to publish the messages waiting to be sent. Will delay retry.')
-            logger.debug(f'MESSAGE DB POOL STATUS: [{self.message_database.db_engine.pool.status()}]')
-            # Do not incriment or apply exponential backoff if a connection could not be established
-
-            return False
-            
         except Exception as ex:
             logger.error(f"Oops! {ex.__class__} occurred. Details: {ex}")
-            logger.debug(f'MESSAGE DB POOL STATUS: [{self.message_database.db_engine.pool.status()}]')  
-            
-            self.batch_concurrent_error_count += 1
-            self.batch_error_count += 1
-            
-            message.process_count += 1
-            eligible_after = self.calculate_exponential_backoff(message.process_count)
-            message.eligible_after = eligible_after
-            
-            if (self.batch_concurrent_error_count > 5 and self.stop_concurrent_submission == False):                
-                self.stop_concurrent_submission = True      # Stop concurrent submission 
-                self.semaphore.set_new_limit(1)
-                
+
+            if local_session is None:
+                local_session = self.message_database.db_session_maker()
+
+            db_message = local_session.query(MessageOutboxEntity).filter(
+                MessageOutboxEntity.id == message_id
+            ).first()
+
+            if db_message is not None:
+                db_message.process_count += 1
+                db_message.status = OutboxStatus.Retry.name
+                db_message.is_completed = False
+                db_message.eligible_after = self.calculate_exponential_backoff(db_message.process_count)
+                local_session.commit()
+
         finally:
-            if not success:
-                self.in_flight.try_remove(message.id)
-                
+            self.in_flight.try_remove(message_id)
+
+            if local_session is not None:
+                local_session.close()
+
             self.semaphore.release()
+        
+        return success
 
 
     async def run(self, stop_event: asyncio.Event, message_database:MessageDatabase) -> None:        
         self.message_database = message_database
         self.pooling_utility = PoolingUtility(logger, self.message_database.create_db_engine())
         counter = 0
+        session:Session = None
 
         while not stop_event.is_set():
-            session = None
             long_wait = False
             self.in_flight = InFlightSet(capacity=20000, ttl=timedelta(minutes=5))
 
@@ -249,15 +273,14 @@ class OutboxBackgroundService:
                 self.batch_concurrent_error_count = 0
                 self.process_count = 0
                 self.successful_submission = False
-                last_submission_count = 0
-                
+                last_submission_count = 0                
                 
                 api_caller:ApiSubmission = None
                 counter += 1
                 perf_stats = TimerStats(f"Outbox - Next batch #[{counter}]")
-                submitted_messages:dict = dict()
+                submitted_messages:dict = dict()                
 
-                with Timer(f"Submit messages in outbox [{counter}]", perf_stats):
+                with Timer(f"Submit messages in outbox [{counter}]", perf_stats):                    
 
                     with Timer("Initialization"):
                         if (session is None):
@@ -283,7 +306,10 @@ class OutboxBackgroundService:
                             logger.warning(f'Timeout while cleaning up outbox (Cleanup | Remove Duplicates)] - Not stopping, continuing with outbox processing.')                
                     
                     with Timer("Database connection throttling"):
-                        await self.pooling_utility.throttle_database_connections()                    
+                        await self.pooling_utility.throttle_database_connections()  
+
+                    if (session):
+                        session.commit()       
 
                     if len(self.pending_message_counts) > 0:                        
                         
@@ -322,74 +348,89 @@ class OutboxBackgroundService:
                             current_message = None
                             oldest_remaining_item = None
 
-                            with Timer(f"Submit messages to Orchestrator [{len(backlog)}]"):                                            
-                                # Launch publishing tasks with bounded concurrency.
-                                for message in backlog:  
-                                    await asyncio.sleep(self.item_delay)
+                            tasks = []
 
-                                    if (self.in_flight.try_add(message.id) is False):
-                                        logger.warning(f'Unable to dispatch message [{message.id}] as it is already dispatched.')
-                                        continue
+                            for message in backlog:
+                                await asyncio.sleep(self.item_delay)
 
-                                    if (self.recent_successes.try_add(message.id) is False):
-                                        logger.warning(f'Unable to dispatch message [{message.id}] as has already been sent.')
-                                        continue
+                                if not self.in_flight.try_add(message.id):
+                                    logger.warning(f'Unable to dispatch message [{message.id}] as it is already dispatched.')
+                                    continue
 
-                                    await self.semaphore.acquire()
-                                    last_submission_count += 1
+                                if (self.recent_successes.contains(message.id) == True):
+                                    logger.warning(f'Unable to dispatch message [{message.id}] as has already been sent.')
 
-                                    if (message.message_name != current_message):
-                                        batch_id = uuid4()
-                                        current_message = message.message_name
-                                        items_in_batch = sum(1 for x in backlog if x.message_name == message.message_name)
-                                        self.batch_message_counts[message.message_name] = items_in_batch
+                                    if message is not None:
+                                        message.status = OutboxStatus.Published.name
+                                        message.is_completed = True
+                                        message.published_date = datetime.utcnow()
+                                        session.commit()
 
-                                        all_pending_messages = self.pending_message_counts[message.message_name]
-                                        if (all_pending_messages is not None):                                        
-                                            items_remaining_outside_batch = max(0, all_pending_messages.remaining_count - items_in_batch)
-                                            oldest_remaining_item = all_pending_messages.oldest_created_date
-                                        else:
-                                            items_remaining_outside_batch = 0                                   
+                                    continue
 
-                                        message_position_in_batch = 1
+                                await self.semaphore.acquire()
+                                last_submission_count += 1
+
+                                if message.message_name != current_message:
+                                    batch_id = uuid4()
+                                    current_message = message.message_name
+                                    items_in_batch = sum(1 for x in backlog if x.message_name == message.message_name)
+                                    self.batch_message_counts[message.message_name] = items_in_batch
+
+                                    all_pending_messages = self.pending_message_counts[message.message_name]
+                                    if all_pending_messages is not None:
+                                        items_remaining_outside_batch = max(0, all_pending_messages.remaining_count - items_in_batch)
+                                        oldest_remaining_item = all_pending_messages.oldest_created_date
                                     else:
-                                        message_position_in_batch += 1
+                                        items_remaining_outside_batch = 0
 
-                                    asyncio.create_task(self.publish_one(
-                                        message=message,
-                                        api_caller=api_caller,
-                                        content=message.publish_request_object,
-                                        message_batch_id=batch_id,
-                                        total_items_in_batch=items_in_batch,
-                                        position_in_batch=message_position_in_batch,
-                                        total_remaining_excluding_batch=items_remaining_outside_batch,
-                                        oldest_remaining_item=oldest_remaining_item))
+                                    message_position_in_batch = 1
+                                else:
+                                    message_position_in_batch += 1
 
-                                    current_count = submitted_messages.get(message.message_name, 0)
-                                    submitted_messages[message.message_name] = current_count + 1                               
-                            
-                            try:
-                                await asyncio.wait_for(self.semaphore.wait_for_all_released(), timeout=10)
+                                task = asyncio.create_task(self.publish_one(
+                                    message_id=message.id,
+                                    message_name=message.message_name,
+                                    endpoint=message.endpoint,
+                                    handler_name=message.handler_name,
+                                    priority=message.priority,
+                                    created_date=message.created_date,
+                                    transaction_reference=message.transaction_reference,
+                                    group_trace_key=message.group_trace_key,
+                                    source_map_message_id=message.source_map_message_id,
+                                    de_duplication_enabled=message.de_duplication_enabled,
+                                    de_duplication_delay_in_seconds=message.de_duplication_delay_in_seconds,
+                                    unique_header_hash=message.unique_header_hash,
+                                    content=message.publish_request_object,
+                                    api_caller=api_caller,
+                                    message_batch_id=batch_id,
+                                    total_items_in_batch=items_in_batch,
+                                    position_in_batch=message_position_in_batch,
+                                    total_remaining_excluding_batch=items_remaining_outside_batch,
+                                    oldest_remaining_item=oldest_remaining_item
+                                ))
+                                tasks.append(task)
 
-                            except asyncio.TimeoutError:                            
-                                logger.warning(f'Could not wait for all instances to be released.')                
-                                self.semaphore = DynamicSemaphore(self.max_parallel)                        
+                            await self.semaphore.wait_for_all_released()
+                            await asyncio.gather(*tasks, return_exceptions=True)
 
                     if (self.successful_submission):
                         long_wait = False                        
                     else:
                         long_wait = True                        
 
-                    with Timer("Save batch updates to DB"):
-                        session.commit()
-
             except Exception as ex:
+
+                if session is not None:
+                    session.rollback()
+
                 long_wait = True
                 logger.error(ex)
             
             finally:
-                if session is not None:
+                if session is not None:                    
                     session.close()
+                    session = None
 
                 if (self.in_flight is not None):                
                     self.in_flight.clear()
