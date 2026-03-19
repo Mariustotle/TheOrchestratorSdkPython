@@ -1,9 +1,7 @@
 import asyncio
-from email.mime import message
 import json
 
 from dataclasses import dataclass
-from pydantic import Field
 from uuid import UUID, uuid4
 
 from orchestrator_sdk.callback.processing_context import ProcessingContext
@@ -11,7 +9,7 @@ from orchestrator_sdk.contracts.requests.batch_context import BatchContext
 from orchestrator_sdk.data_access.message_broker.methods.api_submission import ApiSubmission
 from orchestrator_sdk.seedworks.in_flight_set import InFlightSet
 
-from typing import Any, Optional, List
+from typing import Optional
 from datetime import datetime, timedelta
 
 from orchestrator_sdk.data_access.database.repositories.message_outbox_repository import MessageOutboxRepository, ReadyForSubmissionBatch
@@ -26,7 +24,6 @@ from orchestrator_sdk.seedworks.dynamic_semaphor import DynamicSemaphore
 
 from orchestrator_sdk.data_access.database.outbox_status import OutboxStatus
 from orchestrator_sdk.data_access.database.tools.pooling_utility import PoolingUtility
-from requests.exceptions import ConnectionError as RequestsConnectionError
 
 from sqlalchemy.orm import Session
 from orchestrator_sdk.seedworks.logger import Logger
@@ -154,29 +151,28 @@ class OutboxBackgroundService:
 
 
     async def publish_one(
-        self,
-        message_id: int,
-        message_name: str,
-        endpoint: str,
-        handler_name: str,
-        priority: int,
-        created_date: datetime,
-        transaction_reference: str,
-        group_trace_key: str,
-        source_map_message_id: str,
-        de_duplication_enabled: bool,
-        de_duplication_delay_in_seconds: int,
-        unique_header_hash: str,
-        content: str,
-        api_caller: ApiSubmission,
-        message_batch_id: UUID,
-        total_items_in_batch: int,
-        position_in_batch: int,
-        total_remaining_excluding_batch: int,
-        oldest_remaining_item: Optional[datetime] = None
-    ):
-        success = False
-        local_session:Session = self.message_database.db_session_maker()
+            self,
+            message_id: int,
+            message_name: str,
+            endpoint: str,
+            handler_name: str,
+            priority: int,
+            created_date: datetime,
+            transaction_reference: str,
+            group_trace_key: str,
+            source_map_message_id: str,
+            de_duplication_enabled: bool,
+            de_duplication_delay_in_seconds: int,
+            unique_header_hash: str,
+            content: str,
+            api_caller: ApiSubmission,
+            message_batch_id: UUID,
+            total_items_in_batch: int,
+            position_in_batch: int,
+            total_remaining_excluding_batch: int,
+            oldest_remaining_item: Optional[datetime] = None
+        ) -> bool:
+        local_session: Session = self.message_database.db_session_maker()
 
         try:
             batch_context = BatchContext.Create(
@@ -188,7 +184,11 @@ class OutboxBackgroundService:
             )
 
             payload = self.update_message_process_fields(
-                priority, content, created_date, message_id, submission_batch=batch_context
+                priority,
+                content,
+                created_date,
+                message_id,
+                submission_batch=batch_context
             )
 
             process_context = ProcessingContext.Create(
@@ -211,52 +211,150 @@ class OutboxBackgroundService:
                 unique_header_hash=unique_header_hash
             )
 
-            if self.use_simulator:
-                await asyncio.sleep(0.02)
-            else:
+            # Phase 1: remote submit
+            try:
                 await api_caller.submit(envelope)
 
-            db_message = local_session.query(MessageOutboxEntity).filter(
-                MessageOutboxEntity.id == message_id
-            ).first()
+            except asyncio.CancelledError:
+                try:
+                    local_session.rollback()
+                except Exception:
+                    pass
 
-            if db_message is not None:
+                logger.warning(f"Publish task cancelled during submit for message [{message_id}]")
+                raise
+
+            except Exception as submit_ex:
+                logger.error(
+                    f"Failed to submit message [{message_id}] to orchestrator. "
+                    f"Details: {submit_ex}"
+                )
+
+                try:
+                    local_session.rollback()
+                except Exception:
+                    pass
+
+                try:
+                    db_message = (
+                        local_session.query(MessageOutboxEntity)
+                        .filter(MessageOutboxEntity.id == message_id)
+                        .first()
+                    )
+
+                    if db_message is not None:
+                        db_message.process_count += 1
+                        db_message.status = OutboxStatus.Retry.name
+                        db_message.is_completed = False
+                        db_message.eligible_after = self.calculate_exponential_backoff(db_message.process_count)
+                        local_session.commit()
+                    else:
+                        logger.error(
+                            f"Message [{message_id}] not found while marking retry after submit failure."
+                        )
+
+                except Exception as retry_ex:
+                    try:
+                        local_session.rollback()
+                    except Exception:
+                        pass
+
+                    logger.error(
+                        f"Failed to mark message [{message_id}] as retry after submit failure. "
+                        f"Details: {retry_ex}"
+                    )
+
+                return False
+
+            # Phase 2: local mark as published
+            try:
+                db_message = (
+                    local_session.query(MessageOutboxEntity)
+                    .filter(MessageOutboxEntity.id == message_id)
+                    .first()
+                )
+
+                if db_message is None:
+                    logger.error(
+                        f"Message [{message_id}] not found for completion after successful submit."
+                    )
+                    return False
+
                 db_message.process_count += 1
                 db_message.status = OutboxStatus.Published.name
                 db_message.is_completed = True
                 db_message.published_date = datetime.utcnow()
+                db_message.eligible_after = None
                 local_session.commit()
 
-            self.update_message_counter_on_success(message_id=message_id, message_name=message_name)
-            success = True
+            except asyncio.CancelledError:
+                try:
+                    local_session.rollback()
+                except Exception:
+                    pass
 
-        except Exception as ex:
-            logger.error(f"Oops! {ex.__class__} occurred. Details: {ex}")
+                logger.warning(
+                    f"Publish task cancelled while marking message [{message_id}] as published"
+                )
+                raise
 
-            if local_session is None:
-                local_session = self.message_database.db_session_maker()
+            except Exception as db_ex:
+                logger.error(
+                    f"Message [{message_id}] was submitted successfully but failed to mark "
+                    f"Published locally. Duplicate resend risk exists. Details: {db_ex}"
+                )
 
-            db_message = local_session.query(MessageOutboxEntity).filter(
-                MessageOutboxEntity.id == message_id
-            ).first()
+                try:
+                    local_session.rollback()
+                except Exception:
+                    pass
 
-            if db_message is not None:
-                db_message.process_count += 1
-                db_message.status = OutboxStatus.Retry.name
-                db_message.is_completed = False
-                db_message.eligible_after = self.calculate_exponential_backoff(db_message.process_count)
-                local_session.commit()
+                try:
+                    db_message = (
+                        local_session.query(MessageOutboxEntity)
+                        .filter(MessageOutboxEntity.id == message_id)
+                        .first()
+                    )
+
+                    if db_message is not None:
+                        db_message.process_count += 1
+                        db_message.status = OutboxStatus.Retry.name
+                        db_message.is_completed = False
+                        db_message.eligible_after = self.calculate_exponential_backoff(db_message.process_count)
+                        local_session.commit()
+                    else:
+                        logger.error(
+                            f"Message [{message_id}] not found while marking retry after local DB failure."
+                        )
+
+                except Exception as retry_ex:
+                    try:
+                        local_session.rollback()
+                    except Exception:
+                        pass
+
+                    logger.error(
+                        f"Failed to mark message [{message_id}] as retry after local DB failure. "
+                        f"Details: {retry_ex}"
+                    )
+
+                return False
+
+            self.update_message_counter_on_success(
+                message_id=message_id,
+                message_name=message_name
+            )
+            return True
 
         finally:
-            self.in_flight.try_remove(message_id)
+            if self.in_flight is not None:
+                self.in_flight.try_remove(message_id)
 
             if local_session is not None:
                 local_session.close()
 
             self.semaphore.release()
         
-        return success
-
 
     async def run(self, stop_event: asyncio.Event, message_database:MessageDatabase) -> None:        
         self.message_database = message_database
@@ -309,9 +407,9 @@ class OutboxBackgroundService:
                         await self.pooling_utility.throttle_database_connections()  
 
                     if (session):
-                        session.commit()       
+                        session.commit()
 
-                    if len(self.pending_message_counts) > 0:                        
+                    if self.pending_message_counts:                 
                         
                         self.batch_message_counts = {}
 
@@ -412,7 +510,13 @@ class OutboxBackgroundService:
                                 tasks.append(task)
 
                             await self.semaphore.wait_for_all_released()
-                            await asyncio.gather(*tasks, return_exceptions=True)
+                            results = await asyncio.gather(*tasks, return_exceptions=True)
+
+                            for result in results:
+                                if isinstance(result, asyncio.CancelledError):
+                                    raise result
+                                if isinstance(result, Exception):
+                                    logger.error(f"Publish task failed: {result}")
 
                     if (self.successful_submission):
                         long_wait = False                        

@@ -121,7 +121,7 @@ class MessageOutboxRepository(RepositoryBase):
         message.is_completed = False
         
         if (message.de_duplication_enabled and message.de_duplication_delay_in_seconds > 0):
-            time_delta = timedelta(minutes=message.de_duplication_delay_in_seconds)
+            time_delta = timedelta(seconds=message.de_duplication_delay_in_seconds)
             message.eligible_after = datetime.utcnow() + time_delta
         
         self.session.add(message)
@@ -161,10 +161,19 @@ class MessageOutboxRepository(RepositoryBase):
         need_intervention_count = self.session.query(MessageOutboxEntity).filter(MessageOutboxEntity.status == OutboxStatus.Preparation.name).count() 
         
         predicates = [
-            MessageOutboxEntity.status == OutboxStatus.Ready.name,
+            MessageOutboxEntity.is_completed == 0,
             or_(
-                MessageOutboxEntity.eligible_after.is_(None),
-                MessageOutboxEntity.eligible_after < datetime.utcnow(),
+                # READY: no eligible_after constraint
+                MessageOutboxEntity.status == OutboxStatus.Ready.name,
+
+                # RETRY: must pass eligible_after check
+                and_(
+                    MessageOutboxEntity.status == OutboxStatus.Retry.name,
+                    or_(
+                        MessageOutboxEntity.eligible_after.is_(None),
+                        MessageOutboxEntity.eligible_after < datetime.utcnow(),
+                    ),
+                ),
             ),
         ]
 
