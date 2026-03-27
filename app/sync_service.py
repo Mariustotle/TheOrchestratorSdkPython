@@ -26,6 +26,8 @@ import json
 logger = Logger.get_instance()
 
 class SyncService():
+
+    require_https:bool = True
     
     def _post(self, request, endpoint):
     
@@ -33,7 +35,7 @@ class SyncService():
                
         json_data = json.dumps(json.loads(request.json()))
         
-        response = requests.post(endpoint, data=json_data, headers=headers, verify=False)
+        response = requests.post(endpoint, data=json_data, headers=headers, verify=self.require_https)
         
         if response.status_code != 200:
             raise Exception(f'Request failed with status code [{response.status_code}] for [{request}]. Details [{response.text}]') 
@@ -50,6 +52,9 @@ class SyncService():
         is_successfull:bool = False
         
         try:
+            
+            if (settings.require_https is not None):
+                self.require_https = settings.require_https
 
             repo = MessageOutboxRepository(session, None)            
             pending_message_counts = repo.get_pending_message_counts()
@@ -72,6 +77,9 @@ class SyncService():
             stream_subscriptions_reg = self.build_stream_subscriptions(stream_subscribers) if stream_subscribers != None else None
             
             sync_application_message_processors_endpoint = endpoints.get_sync_application_message_processors()
+
+            
+
 
             if (settings.use_simulator):
                 event_publisher_count = len(event_publishers_reg) if event_publishers != None else 0

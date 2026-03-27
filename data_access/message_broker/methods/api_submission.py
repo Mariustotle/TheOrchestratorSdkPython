@@ -9,16 +9,32 @@ logger = Logger.get_instance()
 
 
 class ApiSubmission:
-    def __init__(self, verify_ssl: bool = False, timeout_seconds: float = 30.0):
+    def __init__(
+        self,
+        application_name: Optional[str] = None,
+        verify_ssl: bool = False,
+        timeout_seconds: float = 60.0,
+    ):
+        self._application_name = application_name.strip().lower() if application_name else None
+
+        headers = {
+            "Content-Type": "application/json"
+        }
+
+        # Add once at client level (safe because it's static per instance)
+        if self._application_name:
+            headers["X-Application-Name"] = self._application_name
+
         self._client = httpx.AsyncClient(
             verify=verify_ssl,
             timeout=timeout_seconds,
-            headers={"Content-Type": "application/json"},
+            headers=headers,
             limits=httpx.Limits(
                 max_keepalive_connections=100,
                 max_connections=200
             ),
         )
+
         self._disposed = False
 
     def get_json_data(self, publish_request: Any):

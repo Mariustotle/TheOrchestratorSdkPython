@@ -60,6 +60,8 @@ class OutboxBackgroundService:
     stop_concurrent_submission:bool = False
     process_count: int = 0
     use_simulator: bool = False
+    require_https: bool = False
+    application_name: str = None
 
     def __post_init__(self):
         config_reader = ConfigReader()
@@ -77,6 +79,8 @@ class OutboxBackgroundService:
         self.item_delay = orchestrator_settings.outbox.item_delay if orchestrator_settings.outbox.item_delay != None else 0.02
         self.long_batch_delay = orchestrator_settings.outbox.long_batch_delay if orchestrator_settings.outbox.long_batch_delay != None else 10
         self.batch_delay = orchestrator_settings.outbox.batch_delay if orchestrator_settings.outbox.batch_delay != None else 10
+        self.application_name = orchestrator_settings.application_name
+        self.require_https = orchestrator_settings.require_https
 
         # Create a real semaphore instance
         self.semaphore = DynamicSemaphore(self.max_parallel)
@@ -385,7 +389,7 @@ class OutboxBackgroundService:
                             session = self.message_database.db_session_maker()
                         
                         if (api_caller is None):
-                            api_caller = ApiSubmission()                 
+                            api_caller = ApiSubmission(application_name=self.application_name, verify_ssl=self.require_https)                 
 
                         outbox_repo = MessageOutboxRepository(session, None)
                         do_cleanup:bool = True if self.message_database.last_cleanup_timestamp is None or (datetime.utcnow() - self.message_database.last_cleanup_timestamp) > timedelta(hours=self.min_cleanup_interval_in_hours) else False

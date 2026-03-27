@@ -18,3 +18,4 @@ class OrchestratorConfig():
     outbox:Outbox = None
     default_callback_webhook:Webhook = None
     use_simulator:bool = False
+    require_https:bool = False
