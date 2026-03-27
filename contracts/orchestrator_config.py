@@ -1,21 +1,25 @@
 from typing import Optional
 
-class Webhook():
-    name:str = None
-    url:str = None
-    api_token:Optional[str] = None
 
-class Outbox():
-    concurrency:int = None
-    batch_size:int = None
-    item_delay:float = None
-    long_batch_delay:float = None
-    batch_delay:float = None
+class Webhook:
+    name: str = None
+    url: str = None
+    api_token: Optional[str] = None
 
-class OrchestratorConfig():    
-    application_name:str = None
-    base_url:str = None
-    outbox:Outbox = None
-    default_callback_webhook:Webhook = None
-    use_simulator:bool = False
-    require_https:bool = False
+
+class Outbox:
+    concurrency: int = 10
+    batch_size: int = 50
+    item_delay: float = 0.02
+    long_batch_delay: float = 10.0
+    batch_delay: float = 2.0
+    max_submissions_per_minute: int = 1500
+
+
+class OrchestratorConfig:
+    application_name: str = None
+    base_url: str = None
+    outbox: Outbox = Outbox()
+    default_callback_webhook: Optional[Webhook] = None
+    use_simulator: bool = False
+    require_https: bool = False
